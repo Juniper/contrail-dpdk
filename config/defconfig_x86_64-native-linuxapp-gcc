@@ -46,7 +46,7 @@
 # Note: if your compiler does not support the relevant -march options,
 # it will be compiled with whatever latest processor the compiler supports!
 #
-CONFIG_RTE_MACHINE="native"
+CONFIG_RTE_MACHINE="snb"
 
 #
 # define the architecture we compile for.
