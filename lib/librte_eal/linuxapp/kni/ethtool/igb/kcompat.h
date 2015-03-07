@@ -3867,7 +3867,7 @@ static inline struct sk_buff *__kc__vlan_hwaccel_put_tag(struct sk_buff *skb,
 #ifdef NETIF_F_RXHASH
 #define PKT_HASH_TYPE_L3 0
 static inline void
-skb_set_hash(struct sk_buff *skb, __u32 hash, __always_unused int type)
+dp_skb_set_hash(struct sk_buff *skb, __u32 hash, __always_unused int type)
 {
 	skb->rxhash = hash;
 }
