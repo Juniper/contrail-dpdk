@@ -382,6 +382,7 @@ CONFIG_RTE_LIBRTE_REORDER=y
 # Compile librte_port
 #
 CONFIG_RTE_LIBRTE_PORT=y
+RTE_PORT_STATS_COLLECT=n
 
 #
 # Compile librte_table

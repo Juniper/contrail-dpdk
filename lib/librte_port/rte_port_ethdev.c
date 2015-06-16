@@ -41,7 +41,23 @@
 /*
  * Port ETHDEV Reader
  */
+#ifdef RTE_PORT_STATS_COLLECT
+
+#define RTE_PORT_ETHDEV_READER_STATS_PKTS_IN_ADD(port, val) \
+	port->stats.n_pkts_in += val
+#define RTE_PORT_ETHDEV_READER_STATS_PKTS_DROP_ADD(port, val) \
+	port->stats.n_pkts_drop += val
+
+#else
+
+#define RTE_PORT_ETHDEV_READER_STATS_PKTS_IN_ADD(port, val)
+#define RTE_PORT_ETHDEV_READER_STATS_PKTS_DROP_ADD(port, val)
+
+#endif
+
 struct rte_port_ethdev_reader {
+	struct rte_port_in_stats stats;
+
 	uint16_t queue_id;
 	uint8_t port_id;
 };
@@ -79,8 +95,11 @@ rte_port_ethdev_reader_rx(void *port, struct rte_mbuf **pkts, uint32_t n_pkts)
 {
 	struct rte_port_ethdev_reader *p =
 		(struct rte_port_ethdev_reader *) port;
+	uint16_t rx_pkt_cnt;
 
-	return rte_eth_rx_burst(p->port_id, p->queue_id, pkts, n_pkts);
+	rx_pkt_cnt = rte_eth_rx_burst(p->port_id, p->queue_id, pkts, n_pkts);
+	RTE_PORT_ETHDEV_READER_STATS_PKTS_IN_ADD(p, rx_pkt_cnt);
+	return rx_pkt_cnt;
 }
 
 static int
@@ -96,12 +115,41 @@ rte_port_ethdev_reader_free(void *port)
 	return 0;
 }
 
+static int rte_port_ethdev_reader_stats_read(void *port,
+		struct rte_port_in_stats * stats, int clear)
+{
+	struct rte_port_ethdev_reader *p =
+			(struct rte_port_ethdev_reader *) port;
+
+	if (stats != NULL)
+		memcpy(stats, &p->stats, sizeof(p->stats));
+
+	if (clear)
+		memset(&p->stats, 0, sizeof(p->stats));
+
+	return 0;
+}
+
 /*
  * Port ETHDEV Writer
  */
-#define RTE_PORT_ETHDEV_WRITER_APPROACH                  1
+#ifdef RTE_PORT_STATS_COLLECT
+
+#define RTE_PORT_ETHDEV_WRITER_STATS_PKTS_IN_ADD(port, val) \
+	port->stats.n_pkts_in += val
+#define RTE_PORT_ETHDEV_WRITER_STATS_PKTS_DROP_ADD(port, val) \
+	port->stats.n_pkts_drop += val
+
+#else
+
+#define RTE_PORT_ETHDEV_WRITER_STATS_PKTS_IN_ADD(port, val)
+#define RTE_PORT_ETHDEV_WRITER_STATS_PKTS_DROP_ADD(port, val)
+
+#endif
 
 struct rte_port_ethdev_writer {
+	struct rte_port_out_stats stats;
+
 	struct rte_mbuf *tx_buf[2 * RTE_PORT_IN_BURST_SIZE_MAX];
 	uint32_t tx_burst_sz;
 	uint16_t tx_buf_count;
@@ -152,6 +200,7 @@ send_burst(struct rte_port_ethdev_writer *p)
 	nb_tx = rte_eth_tx_burst(p->port_id, p->queue_id,
 			 p->tx_buf, p->tx_buf_count);
 
+	RTE_PORT_ETHDEV_WRITER_STATS_PKTS_DROP_ADD(p, p->tx_buf_count - nb_tx);
 	for ( ; nb_tx < p->tx_buf_count; nb_tx++)
 		rte_pktmbuf_free(p->tx_buf[nb_tx]);
 
@@ -165,50 +214,12 @@ rte_port_ethdev_writer_tx(void *port, struct rte_mbuf *pkt)
 		(struct rte_port_ethdev_writer *) port;
 
 	p->tx_buf[p->tx_buf_count++] = pkt;
+	RTE_PORT_ETHDEV_WRITER_STATS_PKTS_IN_ADD(p, 1);
 	if (p->tx_buf_count >= p->tx_burst_sz)
 		send_burst(p);
 
 	return 0;
 }
-
-#if RTE_PORT_ETHDEV_WRITER_APPROACH == 0
-
-static int
-rte_port_ethdev_writer_tx_bulk(void *port,
-		struct rte_mbuf **pkts,
-		uint64_t pkts_mask)
-{
-	struct rte_port_ethdev_writer *p =
-		(struct rte_port_ethdev_writer *) port;
-
-	if ((pkts_mask & (pkts_mask + 1)) == 0) {
-		uint64_t n_pkts = __builtin_popcountll(pkts_mask);
-		uint32_t i;
-
-		for (i = 0; i < n_pkts; i++) {
-			struct rte_mbuf *pkt = pkts[i];
-
-			p->tx_buf[p->tx_buf_count++] = pkt;
-			if (p->tx_buf_count >= p->tx_burst_sz)
-				send_burst(p);
-		}
-	} else {
-		for ( ; pkts_mask; ) {
-			uint32_t pkt_index = __builtin_ctzll(pkts_mask);
-			uint64_t pkt_mask = 1LLU << pkt_index;
-			struct rte_mbuf *pkt = pkts[pkt_index];
-
-			p->tx_buf[p->tx_buf_count++] = pkt;
-			if (p->tx_buf_count >= p->tx_burst_sz)
-				send_burst(p);
-			pkts_mask &= ~pkt_mask;
-		}
-	}
-
-	return 0;
-}
-
-#elif RTE_PORT_ETHDEV_WRITER_APPROACH == 1
 
 static int
 rte_port_ethdev_writer_tx_bulk(void *port,
@@ -229,9 +240,11 @@ rte_port_ethdev_writer_tx_bulk(void *port,
 		if (tx_buf_count)
 			send_burst(p);
 
+		RTE_PORT_ETHDEV_WRITER_STATS_PKTS_IN_ADD(p, n_pkts);
 		n_pkts_ok = rte_eth_tx_burst(p->port_id, p->queue_id, pkts,
 			n_pkts);
 
+		RTE_PORT_ETHDEV_WRITER_STATS_PKTS_DROP_ADD(p, n_pkts - n_pkts_ok);
 		for ( ; n_pkts_ok < n_pkts; n_pkts_ok++) {
 			struct rte_mbuf *pkt = pkts[n_pkts_ok];
 
@@ -244,6 +257,7 @@ rte_port_ethdev_writer_tx_bulk(void *port,
 			struct rte_mbuf *pkt = pkts[pkt_index];
 
 			p->tx_buf[tx_buf_count++] = pkt;
+			RTE_PORT_ETHDEV_WRITER_STATS_PKTS_IN_ADD(p, 1);
 			pkts_mask &= ~pkt_mask;
 		}
 
@@ -254,12 +268,6 @@ rte_port_ethdev_writer_tx_bulk(void *port,
 
 	return 0;
 }
-
-#else
-
-#error Invalid value for RTE_PORT_ETHDEV_WRITER_APPROACH
-
-#endif
 
 static int
 rte_port_ethdev_writer_flush(void *port)
@@ -287,6 +295,21 @@ rte_port_ethdev_writer_free(void *port)
 	return 0;
 }
 
+static int rte_port_ethdev_writer_stats_read(void *port,
+		struct rte_port_out_stats *stats, int clear)
+{
+	struct rte_port_ethdev_writer *p =
+		(struct rte_port_ethdev_writer *) port;
+
+	if (stats != NULL)
+		memcpy(stats, &p->stats, sizeof(p->stats));
+
+	if (clear)
+		memset(&p->stats, 0, sizeof(p->stats));
+
+	return 0;
+}
+
 /*
  * Summary of port operations
  */
@@ -294,6 +317,7 @@ struct rte_port_in_ops rte_port_ethdev_reader_ops = {
 	.f_create = rte_port_ethdev_reader_create,
 	.f_free = rte_port_ethdev_reader_free,
 	.f_rx = rte_port_ethdev_reader_rx,
+	.f_stats = rte_port_ethdev_reader_stats_read,
 };
 
 struct rte_port_out_ops rte_port_ethdev_writer_ops = {
@@ -302,4 +326,5 @@ struct rte_port_out_ops rte_port_ethdev_writer_ops = {
 	.f_tx = rte_port_ethdev_writer_tx,
 	.f_tx_bulk = rte_port_ethdev_writer_tx_bulk,
 	.f_flush = rte_port_ethdev_writer_flush,
+	.f_stats = rte_port_ethdev_writer_stats_read,
 };
