@@ -55,4 +55,4 @@
 # CPU_LDFLAGS =
 # CPU_ASFLAGS =
 
-MACHINE_CFLAGS = -march=corei7-avx
+MACHINE_CFLAGS = -march=corei7-avx -mno-aes
