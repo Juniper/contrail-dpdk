@@ -326,6 +326,15 @@ struct rte_mbuf {
 #define RTE_MBUF_FROM_BADDR(ba)     (((struct rte_mbuf *)(ba)) - 1)
 
 /**
+ * Given the buf_addr returns the pointer to corresponding mbuf.
+ * This is a hacked version for use in the vRouter introduced in order to
+ * workaround the fragmented mbufs free. This is not necessary in DPDK 2.1 as
+ * the mechanism of freeing the segments is designed differently.
+ */
+#define RTE_MBUF_FROM_BADDR_CONTRAIL(ba)    ( \
+	(struct rte_mbuf *)((uint8_t *)(ba) - sizeof(struct rte_mbuf) - 48))
+
+/**
  * Given the pointer to mbuf returns an address where it's  buf_addr
  * should point to.
  */
@@ -785,7 +794,8 @@ __rte_pktmbuf_prefree_seg(struct rte_mbuf *m)
 		 *  - free attached mbuf segment
 		 */
 		if (RTE_MBUF_INDIRECT(m)) {
-			struct rte_mbuf *md = RTE_MBUF_FROM_BADDR(m->buf_addr);
+			struct rte_mbuf *md =
+				RTE_MBUF_FROM_BADDR_CONTRAIL(m->buf_addr);
 			rte_pktmbuf_detach(m);
 			if (rte_mbuf_refcnt_update(md, -1) == 0)
 				__rte_mbuf_raw_free(md);
