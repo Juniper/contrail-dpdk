@@ -323,7 +323,8 @@ struct rte_mbuf {
 /**
  * Given the buf_addr returns the pointer to corresponding mbuf.
  */
-#define RTE_MBUF_FROM_BADDR(ba)     (((struct rte_mbuf *)(ba)) - 1)
+#define RTE_MBUF_FROM_BADDR(ba)    \
+    ((struct rte_mbuf *)((uint8_t *)(ba) - sizeof(struct rte_mbuf) - 48)) 
 
 /**
  * Given the pointer to mbuf returns an address where it's  buf_addr
