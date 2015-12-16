@@ -458,8 +458,8 @@ rte_pmd_init_internals(const char *name,
 	}
 
 	RTE_LOG(INFO, PMD,
-		"%s: creating AF_PACKET-backed ethdev on numa socket %u\n",
-		name, numa_node);
+		"%s: creating AF_PACKET-backed ethdev on numa socket %d\n",
+		name, (int)numa_node);
 
 	/*
 	 * now do all data allocation - for eth_dev structure, dummy pci driver
@@ -668,6 +668,8 @@ rte_pmd_init_internals(const char *name,
 	data->nb_tx_queues = (uint16_t)nb_queues;
 	data->dev_link = pmd_link;
 	data->mac_addrs = &(*internals)->eth_addr;
+	strncpy(data->name,
+		(*eth_dev)->data->name, strlen((*eth_dev)->data->name));
 
 	pci_dev->numa_node = numa_node;
 
