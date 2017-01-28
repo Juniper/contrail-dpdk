@@ -108,6 +108,8 @@ extern "C" {
 #define PKT_RX_FDIR_ID       (1ULL << 13) /**< FD id reported if FDIR match. */
 #define PKT_RX_FDIR_FLX      (1ULL << 14) /**< Flexible bytes reported if FDIR match. */
 #define PKT_RX_QINQ_PKT      (1ULL << 15)  /**< RX packet with double VLAN stripped. */
+#define PKT_RX_GSO_TCP4      (1ULL << 16)  /**< RX packet with TCPv4 segment offload */
+#define PKT_RX_GSO_TCP6      (1ULL << 17)  /**< RX packet with TCPv6 segment offload */
 /* add new RX flags here */
 
 /* add new TX flags here */
