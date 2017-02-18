@@ -141,6 +141,7 @@ struct bond_dev_private {
 	uint16_t nb_rx_queues;			/**< Total number of rx queues */
 	uint16_t nb_tx_queues;			/**< Total number of tx queues*/
 
+        uint8_t active_slave;
 	uint8_t active_slave_count;		/**< Number of active slaves */
 	uint8_t active_slaves[RTE_MAX_ETHPORTS];	/**< Active slave list */
 
