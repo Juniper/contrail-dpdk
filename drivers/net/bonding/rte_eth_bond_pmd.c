@@ -1852,7 +1852,7 @@ bond_ethdev_link_update(struct rte_eth_dev *bonded_eth_dev,
 					wait_to_complete);
 			if (slave_eth_dev->data->dev_link.link_status == ETH_LINK_UP) {
 				link_up = 1;
-				break;
+				// break;
 			}
 		}
 

@@ -178,6 +178,8 @@ extern "C" {
 #define PKT_RX_LRO           (1ULL << 16)
 
 /* add new RX flags here */
+#define PKT_RX_GSO_TCP4      (1ULL << 17)  /**< RX packet with TCPv4 segment offload */
+#define PKT_RX_GSO_TCP6      (1ULL << 18)  /**< RX packet with TCPv6 segment offload */
 
 /* add new TX flags here */
 

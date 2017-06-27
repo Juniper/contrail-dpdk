@@ -73,9 +73,9 @@ ifneq ($(filter $(AUTO_CPUFLAGS),__AVX__),)
 CPUFLAGS += AVX
 endif
 
-ifneq ($(filter $(AUTO_CPUFLAGS),__RDRND__),)
-CPUFLAGS += RDRAND
-endif
+#ifneq ($(filter $(AUTO_CPUFLAGS),__RDRND__),)
+#CPUFLAGS += RDRAND
+#endif
 
 ifneq ($(filter $(AUTO_CPUFLAGS),__FSGSBASE__),)
 CPUFLAGS += FSGSBASE
