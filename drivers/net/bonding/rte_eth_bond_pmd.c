@@ -1346,6 +1346,10 @@ slave_configure(struct rte_eth_dev *bonded_eth_dev,
 
 	slave_eth_dev->data->dev_conf.rxmode.hw_vlan_filter =
 			bonded_eth_dev->data->dev_conf.rxmode.hw_vlan_filter;
+        slave_eth_dev->data->dev_conf.rxmode.max_rx_pkt_len = 
+                        bonded_eth_dev->data->dev_conf.rxmode.max_rx_pkt_len; 
+        slave_eth_dev->data->dev_conf.rxmode.jumbo_frame = 
+                        bonded_eth_dev->data->dev_conf.rxmode.jumbo_frame;
 
 	/* Configure device */
 	errval = rte_eth_dev_configure(slave_eth_dev->data->port_id,
@@ -1423,9 +1427,11 @@ slave_configure(struct rte_eth_dev *bonded_eth_dev,
 	}
 
 	/* If lsc interrupt is set, check initial slave's link status */
-	if (slave_eth_dev->data->dev_flags & RTE_ETH_DEV_INTR_LSC)
+	if (slave_eth_dev->data->dev_flags & RTE_ETH_DEV_INTR_LSC) {
+                slave_eth_dev->dev_ops->link_update(slave_eth_dev, 0);
 		bond_ethdev_lsc_event_callback(slave_eth_dev->data->port_id,
 			RTE_ETH_EVENT_INTR_LSC, &bonded_eth_dev->data->port_id);
+        }
 
 	return 0;
 }
@@ -1665,7 +1671,7 @@ bond_ethdev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	dev_info->max_mac_addrs = 1;
 
 	dev_info->max_rx_pktlen = internals->candidate_max_rx_pktlen ?
-				  internals->candidate_max_rx_pktlen : 2048;
+               internals->candidate_max_rx_pktlen : ETHER_MAX_JUMBO_FRAME_LEN;
 
 	dev_info->max_rx_queues = (uint16_t)128;
 	dev_info->max_tx_queues = (uint16_t)512;
