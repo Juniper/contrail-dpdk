@@ -307,7 +307,7 @@ cperf_throughput_test_verifier(struct rte_mbuf *mbuf,
 	uint16_t nb_segs;
 	uint8_t *data;
 	uint32_t cipher_offset, auth_offset;
-	uint8_t	cipher, auth;
+	uint8_t	cipher = 0, auth = 0;
 	int res = 0;
 
 	m = mbuf;
@@ -395,7 +395,7 @@ int
 cperf_throughput_test_runner(void *test_ctx)
 {
 	struct cperf_throughput_ctx *ctx = test_ctx;
-	struct cperf_op_result *res, *pres;
+	struct cperf_op_result *res = NULL, *pres;
 
 	if (ctx->options->verify) {
 		res = rte_malloc(NULL, sizeof(struct cperf_op_result) *

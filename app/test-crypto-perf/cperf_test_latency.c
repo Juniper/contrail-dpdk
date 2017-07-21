@@ -327,8 +327,8 @@ cperf_latency_test_verifier(struct rte_mbuf *mbuf,
 	uint32_t len;
 	uint16_t nb_segs;
 	uint8_t *data;
-	uint32_t cipher_offset, auth_offset;
-	uint8_t	cipher, auth;
+        uint32_t cipher_offset = 0, auth_offset = 0;
+        uint8_t cipher = 0, auth = 0;
 	int res = 0;
 
 	m = mbuf;
