@@ -199,10 +199,15 @@ int bnxt_mq_rx_configure(struct bnxt *bp)
 	}
 	STAILQ_INSERT_TAIL(&vnic->filter, filter, next);
 
-	if (dev_conf->rxmode.mq_mode & ETH_MQ_RX_RSS_FLAG)
+	if (dev_conf->rxmode.mq_mode & ETH_MQ_RX_RSS_FLAG) {
 		vnic->hash_type =
 			HWRM_VNIC_RSS_CFG_INPUT_HASH_TYPE_IPV4 |
 			HWRM_VNIC_RSS_CFG_INPUT_HASH_TYPE_IPV6;
+
+                if (dev_conf->rx_adv_conf.rss_conf.rss_hf & ETH_RSS_UDP) {
+                    vnic->hash_type |= HWRM_VNIC_RSS_CFG_INPUT_HASH_TYPE_UDP_IPV4;
+                }
+        }
 
 out:
 	return rc;
