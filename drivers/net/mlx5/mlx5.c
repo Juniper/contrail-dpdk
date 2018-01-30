@@ -64,6 +64,7 @@
 #endif
 
 #include "mlx5.h"
+#include "mlx5_glue.h"
 #include "mlx5_utils.h"
 #include "mlx5_rxtx.h"
 #include "mlx5_autoconf.h"
@@ -170,8 +171,8 @@ mlx5_dev_close(struct rte_eth_dev *dev)
 	}
 	if (priv->pd != NULL) {
 		assert(priv->ctx != NULL);
-		claim_zero(ibv_dealloc_pd(priv->pd));
-		claim_zero(ibv_close_device(priv->ctx));
+		claim_zero(mlx5_glue->dealloc_pd(priv->pd));
+		claim_zero(mlx5_glue->close_device(priv->ctx));
 	} else
 		assert(priv->ctx == NULL);
 	if (priv->rss_conf != NULL) {
@@ -384,7 +385,7 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 
 	/* Save PCI address. */
 	mlx5_dev[idx].pci_addr = pci_dev->addr;
-	list = ibv_get_device_list(&i);
+	list = mlx5_glue->get_device_list(&i);
 	if (list == NULL) {
 		assert(errno);
 		if (errno == ENOSYS) {
@@ -438,12 +439,12 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		     list[i]->name,
 		     sriov ? "true" : "false",
 		     mps ? "true" : "false");
-		attr_ctx = ibv_open_device(list[i]);
+		attr_ctx = mlx5_glue->open_device(list[i]);
 		err = errno;
 		break;
 	}
 	if (attr_ctx == NULL) {
-		ibv_free_device_list(list);
+		mlx5_glue->free_device_list(list);
 		switch (err) {
 		case 0:
 			WARN("cannot access device, is mlx5_ib loaded?");
@@ -458,7 +459,7 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 	ibv_dev = list[i];
 
 	DEBUG("device opened");
-	if (ibv_query_device(attr_ctx, &device_attr))
+	if (mlx5_glue->query_device(attr_ctx, &device_attr))
 		goto error;
 	INFO("%u port(s) detected", device_attr.phys_port_cnt);
 
@@ -483,12 +484,12 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 
 		DEBUG("using port %u (%08" PRIx32 ")", port, test);
 
-		ctx = ibv_open_device(ibv_dev);
+		ctx = mlx5_glue->open_device(ibv_dev);
 		if (ctx == NULL)
 			goto port_error;
 
 		/* Check port status. */
-		err = ibv_query_port(ctx, port, &port_attr);
+		err = mlx5_glue->query_port(ctx, port, &port_attr);
 		if (err) {
 			ERROR("port query failed: %s", strerror(err));
 			goto port_error;
@@ -502,11 +503,11 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 
 		if (port_attr.state != IBV_PORT_ACTIVE)
 			DEBUG("port %d is not active: \"%s\" (%d)",
-			      port, ibv_port_state_str(port_attr.state),
+			      port, mlx5_glue->port_state_str(port_attr.state),
 			      port_attr.state);
 
 		/* Allocate protection domain. */
-		pd = ibv_alloc_pd(ctx);
+		pd = mlx5_glue->alloc_pd(ctx);
 		if (pd == NULL) {
 			ERROR("PD allocation failure");
 			err = ENOMEM;
@@ -538,7 +539,7 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 			      strerror(err));
 			goto port_error;
 		}
-		if (ibv_exp_query_device(ctx, &exp_device_attr)) {
+		if (mlx5_glue->exp_query_device(ctx, &exp_device_attr)) {
 			ERROR("ibv_exp_query_device() failed");
 			goto port_error;
 		}
@@ -638,7 +639,7 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 			char name[RTE_ETH_NAME_MAX_LEN];
 
 			snprintf(name, sizeof(name), "%s port %u",
-				 ibv_get_device_name(ibv_dev), port);
+				 mlx5_glue->get_device_name(ibv_dev), port);
 			eth_dev = rte_eth_dev_allocate(name);
 		}
 		if (eth_dev == NULL) {
@@ -695,9 +696,9 @@ port_error:
 			rte_free(priv);
 		}
 		if (pd)
-			claim_zero(ibv_dealloc_pd(pd));
+			claim_zero(mlx5_glue->dealloc_pd(pd));
 		if (ctx)
-			claim_zero(ibv_close_device(ctx));
+			claim_zero(mlx5_glue->close_device(ctx));
 		break;
 	}
 
@@ -716,9 +717,9 @@ port_error:
 
 error:
 	if (attr_ctx)
-		claim_zero(ibv_close_device(attr_ctx));
+		claim_zero(mlx5_glue->close_device(attr_ctx));
 	if (list)
-		ibv_free_device_list(list);
+		mlx5_glue->free_device_list(list);
 	assert(err >= 0);
 	return -err;
 }
@@ -787,7 +788,7 @@ rte_mlx5_pmd_init(void)
 	 * using this PMD, which is not supported in forked processes.
 	 */
 	setenv("RDMAV_HUGEPAGES_SAFE", "1", 1);
-	ibv_fork_init();
+	mlx5_glue->fork_init();
 	rte_eal_pci_register(&mlx5_driver.pci_drv);
 }
 

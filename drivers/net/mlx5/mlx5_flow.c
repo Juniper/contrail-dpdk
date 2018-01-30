@@ -50,6 +50,7 @@
 #include <rte_malloc.h>
 
 #include "mlx5.h"
+#include "mlx5_glue.h"
 #include "mlx5_prm.h"
 
 static int
@@ -883,25 +884,26 @@ priv_flow_create_action_queue(struct priv *priv,
 		return NULL;
 	}
 	if (action->drop) {
-		rte_flow->cq =
-			ibv_exp_create_cq(priv->ctx, 1, NULL, NULL, 0,
-					  &(struct ibv_exp_cq_init_attr){
-						  .comp_mask = 0,
-					  });
+		rte_flow->cq = mlx5_glue->exp_create_cq
+			(priv->ctx, 1, NULL, NULL, 0,
+			 &(struct ibv_exp_cq_init_attr){
+				.comp_mask = 0,
+			 });
 		if (!rte_flow->cq) {
 			rte_flow_error_set(error, ENOMEM,
 					   RTE_FLOW_ERROR_TYPE_HANDLE,
 					   NULL, "cannot allocate CQ");
 			goto error;
 		}
-		rte_flow->wq = ibv_exp_create_wq(priv->ctx,
-						 &(struct ibv_exp_wq_init_attr){
-						 .wq_type = IBV_EXP_WQT_RQ,
-						 .max_recv_wr = 1,
-						 .max_recv_sge = 1,
-						 .pd = priv->pd,
-						 .cq = rte_flow->cq,
-						 });
+		rte_flow->wq = mlx5_glue->exp_create_wq
+			(priv->ctx,
+			 &(struct ibv_exp_wq_init_attr){
+				.wq_type = IBV_EXP_WQT_RQ,
+				.max_recv_wr = 1,
+				.max_recv_sge = 1,
+				.pd = priv->pd,
+				.cq = rte_flow->cq,
+			 });
 	} else {
 		rxq = container_of((*priv->rxqs)[action->queue_id],
 				   struct rxq_ctrl, rxq);
@@ -911,22 +913,22 @@ priv_flow_create_action_queue(struct priv *priv,
 	}
 	rte_flow->mark = action->mark;
 	rte_flow->ibv_attr = ibv_attr;
-	rte_flow->ind_table = ibv_exp_create_rwq_ind_table(
-		priv->ctx,
-		&(struct ibv_exp_rwq_ind_table_init_attr){
+	rte_flow->ind_table = mlx5_glue->exp_create_rwq_ind_table
+		(priv->ctx,
+		 &(struct ibv_exp_rwq_ind_table_init_attr){
 			.pd = priv->pd,
 			.log_ind_tbl_size = 0,
 			.ind_tbl = &rte_flow->wq,
 			.comp_mask = 0,
-		});
+		 });
 	if (!rte_flow->ind_table) {
 		rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_HANDLE,
 				   NULL, "cannot allocate indirection table");
 		goto error;
 	}
-	rte_flow->qp = ibv_exp_create_qp(
-		priv->ctx,
-		&(struct ibv_exp_qp_init_attr){
+	rte_flow->qp = mlx5_glue->exp_create_qp
+		(priv->ctx,
+		 &(struct ibv_exp_qp_init_attr){
 			.qp_type = IBV_QPT_RAW_PACKET,
 			.comp_mask =
 				IBV_EXP_QP_INIT_ATTR_PD |
@@ -942,7 +944,7 @@ priv_flow_create_action_queue(struct priv *priv,
 				.rwq_ind_tbl = rte_flow->ind_table,
 			},
 			.port_num = priv->port,
-		});
+		 });
 	if (!rte_flow->qp) {
 		rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_HANDLE,
 				   NULL, "cannot allocate QP");
@@ -950,8 +952,8 @@ priv_flow_create_action_queue(struct priv *priv,
 	}
 	if (!priv->started)
 		return rte_flow;
-	rte_flow->ibv_flow = ibv_exp_create_flow(rte_flow->qp,
-						 rte_flow->ibv_attr);
+	rte_flow->ibv_flow = mlx5_glue->exp_create_flow(rte_flow->qp,
+							rte_flow->ibv_attr);
 	if (!rte_flow->ibv_flow) {
 		rte_flow_error_set(error, ENOMEM, RTE_FLOW_ERROR_TYPE_HANDLE,
 				   NULL, "flow rule creation failure");
@@ -961,14 +963,13 @@ priv_flow_create_action_queue(struct priv *priv,
 error:
 	assert(rte_flow);
 	if (rte_flow->qp)
-		ibv_destroy_qp(rte_flow->qp);
+		mlx5_glue->destroy_qp(rte_flow->qp);
 	if (rte_flow->ind_table)
-		ibv_exp_destroy_rwq_ind_table(rte_flow->ind_table);
+		mlx5_glue->exp_destroy_rwq_ind_table(rte_flow->ind_table);
 	if (!rte_flow->rxq && rte_flow->wq)
-		ibv_exp_destroy_wq(rte_flow->wq);
+		mlx5_glue->exp_destroy_wq(rte_flow->wq);
 	if (!rte_flow->rxq && rte_flow->cq)
-		ibv_destroy_cq(rte_flow->cq);
-	rte_free(rte_flow->ibv_attr);
+		mlx5_glue->destroy_cq(rte_flow->cq);
 	rte_free(rte_flow);
 	return NULL;
 }
@@ -1109,15 +1110,16 @@ priv_flow_destroy(struct priv *priv,
 	(void)priv;
 	LIST_REMOVE(flow, next);
 	if (flow->ibv_flow)
-		claim_zero(ibv_exp_destroy_flow(flow->ibv_flow));
+		claim_zero(mlx5_glue->exp_destroy_flow(flow->ibv_flow));
 	if (flow->qp)
-		claim_zero(ibv_destroy_qp(flow->qp));
+		claim_zero(mlx5_glue->destroy_qp(flow->qp));
 	if (flow->ind_table)
-		claim_zero(ibv_exp_destroy_rwq_ind_table(flow->ind_table));
+		claim_zero(mlx5_glue->exp_destroy_rwq_ind_table
+			   (flow->ind_table));
 	if (!flow->rxq && flow->wq)
-		claim_zero(ibv_exp_destroy_wq(flow->wq));
+		claim_zero(mlx5_glue->exp_destroy_wq(flow->wq));
 	if (!flow->rxq && flow->cq)
-		claim_zero(ibv_destroy_cq(flow->cq));
+		claim_zero(mlx5_glue->destroy_cq(flow->cq));
 	if (flow->mark) {
 		struct rte_flow *tmp;
 		uint32_t mark_n = 0;
@@ -1207,7 +1209,7 @@ priv_flow_stop(struct priv *priv)
 	for (flow = LIST_FIRST(&priv->flows);
 	     flow;
 	     flow = LIST_NEXT(flow, next)) {
-		claim_zero(ibv_exp_destroy_flow(flow->ibv_flow));
+		claim_zero(mlx5_glue->exp_destroy_flow(flow->ibv_flow));
 		flow->ibv_flow = NULL;
 		if (flow->mark)
 			flow->rxq->mark = 0;
@@ -1232,8 +1234,8 @@ priv_flow_start(struct priv *priv)
 	for (flow = LIST_FIRST(&priv->flows);
 	     flow;
 	     flow = LIST_NEXT(flow, next)) {
-		flow->ibv_flow = ibv_exp_create_flow(flow->qp,
-						     flow->ibv_attr);
+		flow->ibv_flow = mlx5_glue->exp_create_flow(flow->qp,
+							    flow->ibv_attr);
 		if (!flow->ibv_flow) {
 			DEBUG("Flow %p cannot be applied", (void *)flow);
 			rte_errno = EINVAL;

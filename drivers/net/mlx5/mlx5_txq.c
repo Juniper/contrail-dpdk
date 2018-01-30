@@ -62,6 +62,7 @@
 #include "mlx5_utils.h"
 #include "mlx5_defs.h"
 #include "mlx5.h"
+#include "mlx5_glue.h"
 #include "mlx5_rxtx.h"
 #include "mlx5_autoconf.h"
 #include "mlx5_defs.h"
@@ -152,9 +153,9 @@ txq_cleanup(struct txq_ctrl *txq_ctrl)
 		params = (struct ibv_exp_release_intf_params){
 			.comp_mask = 0,
 		};
-		claim_zero(ibv_exp_release_intf(txq_ctrl->priv->ctx,
-						txq_ctrl->if_qp,
-						&params));
+		claim_zero(mlx5_glue->exp_release_intf(txq_ctrl->priv->ctx,
+						       txq_ctrl->if_qp,
+						       &params));
 	}
 	if (txq_ctrl->if_cq != NULL) {
 		assert(txq_ctrl->priv != NULL);
@@ -163,14 +164,14 @@ txq_cleanup(struct txq_ctrl *txq_ctrl)
 		params = (struct ibv_exp_release_intf_params){
 			.comp_mask = 0,
 		};
-		claim_zero(ibv_exp_release_intf(txq_ctrl->priv->ctx,
-						txq_ctrl->if_cq,
-						&params));
+		claim_zero(mlx5_glue->exp_release_intf(txq_ctrl->priv->ctx,
+						       txq_ctrl->if_cq,
+						       &params));
 	}
 	if (txq_ctrl->qp != NULL)
-		claim_zero(ibv_destroy_qp(txq_ctrl->qp));
+		claim_zero(mlx5_glue->destroy_qp(txq_ctrl->qp));
 	if (txq_ctrl->cq != NULL)
-		claim_zero(ibv_destroy_cq(txq_ctrl->cq));
+		claim_zero(mlx5_glue->destroy_cq(txq_ctrl->cq));
 	if (txq_ctrl->rd != NULL) {
 		struct ibv_exp_destroy_res_domain_attr attr = {
 			.comp_mask = 0,
@@ -178,15 +179,14 @@ txq_cleanup(struct txq_ctrl *txq_ctrl)
 
 		assert(txq_ctrl->priv != NULL);
 		assert(txq_ctrl->priv->ctx != NULL);
-		claim_zero(ibv_exp_destroy_res_domain(txq_ctrl->priv->ctx,
-						      txq_ctrl->rd,
-						      &attr));
+		claim_zero(mlx5_glue->exp_destroy_res_domain
+			   (txq_ctrl->priv->ctx, txq_ctrl->rd, &attr));
 	}
 	for (i = 0; (i != RTE_DIM(txq_ctrl->txq.mp2mr)); ++i) {
 		if (txq_ctrl->txq.mp2mr[i].mp == NULL)
 			break;
 		assert(txq_ctrl->txq.mp2mr[i].mr != NULL);
-		claim_zero(ibv_dereg_mr(txq_ctrl->txq.mp2mr[i].mr));
+		claim_zero(mlx5_glue->dereg_mr(txq_ctrl->txq.mp2mr[i].mr));
 	}
 	memset(txq_ctrl, 0, sizeof(*txq_ctrl));
 }
@@ -283,7 +283,7 @@ txq_ctrl_setup(struct rte_eth_dev *dev, struct txq_ctrl *txq_ctrl,
 		.thread_model = IBV_EXP_THREAD_SINGLE,
 		.msg_model = IBV_EXP_MSG_HIGH_BW,
 	};
-	tmpl.rd = ibv_exp_create_res_domain(priv->ctx, &attr.rd);
+	tmpl.rd = mlx5_glue->exp_create_res_domain(priv->ctx, &attr.rd);
 	if (tmpl.rd == NULL) {
 		ret = ENOMEM;
 		ERROR("%p: RD creation failure: %s",
@@ -294,10 +294,11 @@ txq_ctrl_setup(struct rte_eth_dev *dev, struct txq_ctrl *txq_ctrl,
 		.comp_mask = IBV_EXP_CQ_INIT_ATTR_RES_DOMAIN,
 		.res_domain = tmpl.rd,
 	};
-	tmpl.cq = ibv_exp_create_cq(priv->ctx,
-				    (((desc / MLX5_TX_COMP_THRESH) - 1) ?
-				     ((desc / MLX5_TX_COMP_THRESH) - 1) : 1),
-				    NULL, NULL, 0, &attr.cq);
+	tmpl.cq = mlx5_glue->exp_create_cq
+		(priv->ctx,
+		 (((desc / MLX5_TX_COMP_THRESH) - 1) ?
+		  ((desc / MLX5_TX_COMP_THRESH) - 1) : 1),
+		 NULL, NULL, 0, &attr.cq);
 	if (tmpl.cq == NULL) {
 		ret = ENOMEM;
 		ERROR("%p: CQ creation failure: %s",
@@ -343,7 +344,7 @@ txq_ctrl_setup(struct rte_eth_dev *dev, struct txq_ctrl *txq_ctrl,
 		attr.init.cap.max_inline_data =
 			tmpl.txq.max_inline * RTE_CACHE_LINE_SIZE;
 	}
-	tmpl.qp = ibv_exp_create_qp(priv->ctx, &attr.init);
+	tmpl.qp = mlx5_glue->exp_create_qp(priv->ctx, &attr.init);
 	if (tmpl.qp == NULL) {
 		ret = (errno ? errno : EINVAL);
 		ERROR("%p: QP creation failure: %s",
@@ -361,8 +362,8 @@ txq_ctrl_setup(struct rte_eth_dev *dev, struct txq_ctrl *txq_ctrl,
 		/* Primary port number. */
 		.port_num = priv->port
 	};
-	ret = ibv_exp_modify_qp(tmpl.qp, &attr.mod,
-				(IBV_EXP_QP_STATE | IBV_EXP_QP_PORT));
+	ret = mlx5_glue->exp_modify_qp(tmpl.qp, &attr.mod,
+				       (IBV_EXP_QP_STATE | IBV_EXP_QP_PORT));
 	if (ret) {
 		ERROR("%p: QP state to IBV_QPS_INIT failed: %s",
 		      (void *)dev, strerror(ret));
@@ -378,14 +379,14 @@ txq_ctrl_setup(struct rte_eth_dev *dev, struct txq_ctrl *txq_ctrl,
 	attr.mod = (struct ibv_exp_qp_attr){
 		.qp_state = IBV_QPS_RTR
 	};
-	ret = ibv_exp_modify_qp(tmpl.qp, &attr.mod, IBV_EXP_QP_STATE);
+	ret = mlx5_glue->exp_modify_qp(tmpl.qp, &attr.mod, IBV_EXP_QP_STATE);
 	if (ret) {
 		ERROR("%p: QP state to IBV_QPS_RTR failed: %s",
 		      (void *)dev, strerror(ret));
 		goto error;
 	}
 	attr.mod.qp_state = IBV_QPS_RTS;
-	ret = ibv_exp_modify_qp(tmpl.qp, &attr.mod, IBV_EXP_QP_STATE);
+	ret = mlx5_glue->exp_modify_qp(tmpl.qp, &attr.mod, IBV_EXP_QP_STATE);
 	if (ret) {
 		ERROR("%p: QP state to IBV_QPS_RTS failed: %s",
 		      (void *)dev, strerror(ret));
@@ -396,7 +397,8 @@ txq_ctrl_setup(struct rte_eth_dev *dev, struct txq_ctrl *txq_ctrl,
 		.intf = IBV_EXP_INTF_CQ,
 		.obj = tmpl.cq,
 	};
-	tmpl.if_cq = ibv_exp_query_intf(priv->ctx, &attr.params, &status);
+	tmpl.if_cq = mlx5_glue->exp_query_intf(priv->ctx, &attr.params,
+					       &status);
 	if (tmpl.if_cq == NULL) {
 		ret = EINVAL;
 		ERROR("%p: CQ interface family query failed with status %d",
@@ -414,7 +416,8 @@ txq_ctrl_setup(struct rte_eth_dev *dev, struct txq_ctrl *txq_ctrl,
 			 IBV_EXP_QP_BURST_CREATE_ENABLE_MULTI_PACKET_SEND_WR :
 			 0),
 	};
-	tmpl.if_qp = ibv_exp_query_intf(priv->ctx, &attr.params, &status);
+	tmpl.if_qp = mlx5_glue->exp_query_intf(priv->ctx, &attr.params,
+					       &status);
 	if (tmpl.if_qp == NULL) {
 		ret = EINVAL;
 		ERROR("%p: QP interface family query failed with status %d",

@@ -36,6 +36,7 @@ LIB = librte_pmd_mlx5.a
 
 # Sources.
 SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5.c
+SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5_glue.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5_rxq.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5_txq.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5_rxtx.c

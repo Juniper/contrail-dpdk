@@ -55,6 +55,7 @@
 #endif
 
 #include "mlx5.h"
+#include "mlx5_glue.h"
 #include "mlx5_rxtx.h"
 #include "mlx5_utils.h"
 
@@ -178,7 +179,7 @@ hash_rxq_special_flow_enable_vlan(struct hash_rxq *hash_rxq,
 	};
 
 	errno = 0;
-	flow = ibv_exp_create_flow(hash_rxq->qp, attr);
+	flow = mlx5_glue->exp_create_flow(hash_rxq->qp, attr);
 	if (flow == NULL) {
 		/* It's not clear whether errno is always set in this case. */
 		ERROR("%p: flow configuration failed, errno=%d: %s",
@@ -215,7 +216,7 @@ hash_rxq_special_flow_disable_vlan(struct hash_rxq *hash_rxq,
 
 	if (flow == NULL)
 		return;
-	claim_zero(ibv_exp_destroy_flow(flow));
+	claim_zero(mlx5_glue->exp_destroy_flow(flow));
 	hash_rxq->special_flow[flow_type][vlan_index] = NULL;
 	DEBUG("%p: special flow %s (index %d) VLAN %u (index %u) disabled",
 	      (void *)hash_rxq, hash_rxq_flow_type_str(flow_type), flow_type,

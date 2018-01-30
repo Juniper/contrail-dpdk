@@ -62,6 +62,7 @@
 #endif
 
 #include "mlx5.h"
+#include "mlx5_glue.h"
 #include "mlx5_rxtx.h"
 
 struct fdir_flow_desc {
@@ -386,7 +387,7 @@ priv_fdir_flow_add(struct priv *priv,
 create_flow:
 
 	errno = 0;
-	flow = ibv_exp_create_flow(fdir_queue->qp, attr);
+	flow = mlx5_glue->exp_create_flow(fdir_queue->qp, attr);
 	if (flow == NULL) {
 		/* It's not clear whether errno is always set in this case. */
 		ERROR("%p: flow director configuration failed, errno=%d: %s",
@@ -422,18 +423,19 @@ priv_fdir_queue_destroy(struct priv *priv, struct fdir_queue *fdir_queue)
 		assert(idx < priv->rxqs_n);
 		if (fdir_queue == rxq_ctrl->fdir_queue &&
 		    fdir_filter->flow != NULL) {
-			claim_zero(ibv_exp_destroy_flow(fdir_filter->flow));
+			claim_zero(mlx5_glue->exp_destroy_flow
+				   (fdir_filter->flow));
 			fdir_filter->flow = NULL;
 		}
 	}
 	assert(fdir_queue->qp);
-	claim_zero(ibv_destroy_qp(fdir_queue->qp));
+	claim_zero(mlx5_glue->destroy_qp(fdir_queue->qp));
 	assert(fdir_queue->ind_table);
-	claim_zero(ibv_exp_destroy_rwq_ind_table(fdir_queue->ind_table));
+	claim_zero(mlx5_glue->exp_destroy_rwq_ind_table(fdir_queue->ind_table));
 	if (fdir_queue->wq)
-		claim_zero(ibv_exp_destroy_wq(fdir_queue->wq));
+		claim_zero(mlx5_glue->exp_destroy_wq(fdir_queue->wq));
 	if (fdir_queue->cq)
-		claim_zero(ibv_destroy_cq(fdir_queue->cq));
+		claim_zero(mlx5_glue->destroy_cq(fdir_queue->cq));
 #ifndef NDEBUG
 	memset(fdir_queue, 0x2a, sizeof(*fdir_queue));
 #endif
@@ -467,45 +469,45 @@ priv_fdir_queue_create(struct priv *priv, struct ibv_exp_wq *wq,
 	assert(priv->pd);
 	assert(priv->ctx);
 	if (!wq) {
-		fdir_queue->cq = ibv_exp_create_cq(
-			priv->ctx, 1, NULL, NULL, 0,
-			&(struct ibv_exp_cq_init_attr){
+		fdir_queue->cq = mlx5_glue->exp_create_cq
+			(priv->ctx, 1, NULL, NULL, 0,
+			 &(struct ibv_exp_cq_init_attr){
 				.comp_mask = 0,
-			});
+			 });
 		if (!fdir_queue->cq) {
 			ERROR("cannot create flow director CQ");
 			goto error;
 		}
-		fdir_queue->wq = ibv_exp_create_wq(
-			priv->ctx,
-			&(struct ibv_exp_wq_init_attr){
+		fdir_queue->wq = mlx5_glue->exp_create_wq
+			(priv->ctx,
+			 &(struct ibv_exp_wq_init_attr){
 				.wq_type = IBV_EXP_WQT_RQ,
 				.max_recv_wr = 1,
 				.max_recv_sge = 1,
 				.pd = priv->pd,
 				.cq = fdir_queue->cq,
-			});
+			 });
 		if (!fdir_queue->wq) {
 			ERROR("cannot create flow director WQ");
 			goto error;
 		}
 		wq = fdir_queue->wq;
 	}
-	fdir_queue->ind_table = ibv_exp_create_rwq_ind_table(
-		priv->ctx,
-		&(struct ibv_exp_rwq_ind_table_init_attr){
+	fdir_queue->ind_table = mlx5_glue->exp_create_rwq_ind_table
+		(priv->ctx,
+		 &(struct ibv_exp_rwq_ind_table_init_attr){
 			.pd = priv->pd,
 			.log_ind_tbl_size = 0,
 			.ind_tbl = &wq,
 			.comp_mask = 0,
-		});
+		 });
 	if (!fdir_queue->ind_table) {
 		ERROR("cannot create flow director indirection table");
 		goto error;
 	}
-	fdir_queue->qp = ibv_exp_create_qp(
-		priv->ctx,
-		&(struct ibv_exp_qp_init_attr){
+	fdir_queue->qp = mlx5_glue->exp_create_qp
+		(priv->ctx,
+		 &(struct ibv_exp_qp_init_attr){
 			.qp_type = IBV_QPT_RAW_PACKET,
 			.comp_mask =
 				IBV_EXP_QP_INIT_ATTR_PD |
@@ -521,7 +523,7 @@ priv_fdir_queue_create(struct priv *priv, struct ibv_exp_wq *wq,
 				.rwq_ind_tbl = fdir_queue->ind_table,
 			},
 			.port_num = priv->port,
-		});
+		 });
 	if (!fdir_queue->qp) {
 		ERROR("cannot create flow director hash RX QP");
 		goto error;
@@ -531,12 +533,12 @@ error:
 	assert(fdir_queue);
 	assert(!fdir_queue->qp);
 	if (fdir_queue->ind_table)
-		claim_zero(ibv_exp_destroy_rwq_ind_table
+		claim_zero(mlx5_glue->exp_destroy_rwq_ind_table
 			   (fdir_queue->ind_table));
 	if (fdir_queue->wq)
-		claim_zero(ibv_exp_destroy_wq(fdir_queue->wq));
+		claim_zero(mlx5_glue->exp_destroy_wq(fdir_queue->wq));
 	if (fdir_queue->cq)
-		claim_zero(ibv_destroy_cq(fdir_queue->cq));
+		claim_zero(mlx5_glue->destroy_cq(fdir_queue->cq));
 	rte_free(fdir_queue);
 	return NULL;
 }
@@ -685,7 +687,7 @@ priv_fdir_filter_flush(struct priv *priv)
 		      (void *)priv, (void *)mlx5_fdir_filter);
 		LIST_REMOVE(mlx5_fdir_filter, next);
 		if (flow != NULL)
-			claim_zero(ibv_exp_destroy_flow(flow));
+			claim_zero(mlx5_glue->exp_destroy_flow(flow));
 		rte_free(mlx5_fdir_filter);
 	}
 }
@@ -726,7 +728,7 @@ priv_fdir_disable(struct priv *priv)
 
 		/* Destroy flow handle */
 		if (flow != NULL) {
-			claim_zero(ibv_exp_destroy_flow(flow));
+			claim_zero(mlx5_glue->exp_destroy_flow(flow));
 			mlx5_fdir_filter->flow = NULL;
 		}
 	}
@@ -899,7 +901,7 @@ priv_fdir_filter_update(struct priv *priv,
 
 		/* Destroy flow handle. */
 		if (flow != NULL) {
-			claim_zero(ibv_exp_destroy_flow(flow));
+			claim_zero(mlx5_glue->exp_destroy_flow(flow));
 			mlx5_fdir_filter->flow = NULL;
 		}
 		DEBUG("%p: flow director filter %p updated",
@@ -944,7 +946,7 @@ priv_fdir_filter_delete(struct priv *priv,
 
 		/* Destroy flow handle. */
 		if (flow != NULL) {
-			claim_zero(ibv_exp_destroy_flow(flow));
+			claim_zero(mlx5_glue->exp_destroy_flow(flow));
 			mlx5_fdir_filter->flow = NULL;
 		}
 
