@@ -42,6 +42,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <dlfcn.h>
 #include <inttypes.h>
 #include <string.h>
 #include <errno.h>
@@ -72,6 +73,7 @@
 #ifdef PEDANTIC
 #pragma GCC diagnostic ignored "-Wpedantic"
 #endif
+#include <rte_config.h>
 #include <rte_ether.h>
 #include <rte_ethdev.h>
 #include <rte_dev.h>
@@ -5911,6 +5913,47 @@ static struct eth_driver mlx4_driver = {
 	.dev_private_size = sizeof(struct priv)
 };
 
+#ifdef RTE_LIBRTE_MLX4_DLOPEN_DEPS
+
+/**
+ * Initialization routine for run-time dependency on rdma-core.
+ */
+static int
+mlx4_glue_init(void)
+{
+	void *handle = NULL;
+	void **sym;
+	const char *dlmsg;
+
+	handle = dlopen(MLX4_GLUE, RTLD_LAZY);
+	if (!handle) {
+		rte_errno = EINVAL;
+		dlmsg = dlerror();
+		if (dlmsg)
+			WARN("cannot load glue library: %s", dlmsg);
+		goto glue_error;
+	}
+	sym = dlsym(handle, "mlx4_glue");
+	if (!sym || !*sym) {
+		rte_errno = EINVAL;
+		dlmsg = dlerror();
+		if (dlmsg)
+			ERROR("cannot resolve glue symbol: %s", dlmsg);
+		goto glue_error;
+	}
+	mlx4_glue = *sym;
+	return 0;
+glue_error:
+	if (handle)
+		dlclose(handle);
+	WARN("cannot initialize PMD due to missing run-time"
+	     " dependency on rdma-core libraries (libibverbs,"
+	     " libmlx4)");
+	return -rte_errno;
+}
+
+#endif
+
 /**
  * Driver initialization routine.
  */
@@ -5926,6 +5969,11 @@ rte_mlx4_pmd_init(void)
 	 * using this PMD, which is not supported in forked processes.
 	 */
 	setenv("RDMAV_HUGEPAGES_SAFE", "1", 1);
+#ifdef RTE_LIBRTE_MLX4_DLOPEN_DEPS
+	if (mlx4_glue_init())
+		return;
+	assert(mlx4_glue);
+#endif
 	mlx4_glue->fork_init();
 	rte_eal_pci_register(&mlx4_driver.pci_drv);
 }
