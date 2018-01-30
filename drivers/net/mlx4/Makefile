@@ -36,6 +36,7 @@ LIB = librte_pmd_mlx4.a
 
 # Sources.
 SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4.c
+SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4_glue.c
 
 # Dependencies.
 DEPDIRS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += lib/librte_ether
