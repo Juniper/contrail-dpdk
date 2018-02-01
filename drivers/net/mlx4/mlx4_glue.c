@@ -221,6 +221,7 @@ mlx4_glue_wc_status_str(enum ibv_wc_status status)
 }
 
 const struct mlx4_glue *mlx4_glue = &(const struct mlx4_glue){
+	.version = MLX4_GLUE_VERSION,
 	.ack_async_event = mlx4_glue_ack_async_event,
 	.alloc_pd = mlx4_glue_alloc_pd,
 	.close_device = mlx4_glue_close_device,

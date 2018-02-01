@@ -18,7 +18,9 @@
 #pragma GCC diagnostic error "-Wpedantic"
 #endif
 
+/* LIB_GLUE_VERSION must be updated every time this structure is modified. */
 struct mlx5_glue {
+	const char *version;
 	void (*ack_async_event)(struct ibv_async_event *event);
 	struct ibv_pd *(*alloc_pd)(struct ibv_context *context);
 	int (*close_device)(struct ibv_context *context);

@@ -227,6 +227,7 @@ mlx5_glue_reg_mr(struct ibv_pd *pd, void *addr, size_t length, int access)
 }
 
 const struct mlx5_glue *mlx5_glue = &(const struct mlx5_glue){
+	.version = MLX5_GLUE_VERSION,
 	.ack_async_event = mlx5_glue_ack_async_event,
 	.alloc_pd = mlx5_glue_alloc_pd,
 	.close_device = mlx5_glue_close_device,
