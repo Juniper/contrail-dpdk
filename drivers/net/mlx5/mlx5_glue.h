@@ -17,6 +17,9 @@
 #ifdef PEDANTIC
 #pragma GCC diagnostic error "-Wpedantic"
 #endif
+#ifndef MLX5_GLUE_VERSION
+#define MLX5_GLUE_VERSION ""
+#endif
 
 /* LIB_GLUE_VERSION must be updated every time this structure is modified. */
 struct mlx5_glue {
