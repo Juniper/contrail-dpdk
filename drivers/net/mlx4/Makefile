@@ -33,15 +33,25 @@ include $(RTE_SDK)/mk/rte.vars.mk
 
 # Library name.
 LIB = librte_pmd_mlx4.a
+LIB_GLUE = $(LIB_GLUE_BASE).$(LIB_GLUE_VERSION)
+LIB_GLUE_BASE = librte_pmd_mlx4_glue.so
+LIB_GLUE_VERSION = 17.02.1
 
 # Sources.
 SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4.c
+ifneq ($(CONFIG_RTE_LIBRTE_MLX4_DLOPEN_DEPS),y)
+SRCS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += mlx4_glue.c
+endif
 
 # Dependencies.
 DEPDIRS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += lib/librte_ether
 DEPDIRS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += lib/librte_mbuf
 DEPDIRS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += lib/librte_eal
 DEPDIRS-$(CONFIG_RTE_LIBRTE_MLX4_PMD) += lib/librte_mempool
+
+ifeq ($(CONFIG_RTE_LIBRTE_MLX4_DLOPEN_DEPS),y)
+INSTALL-$(CONFIG_RTE_LIBRTE_MLX4_PMD)-lib += $(LIB_GLUE)
+endif
 
 # Basic CFLAGS.
 CFLAGS += -O3
@@ -52,7 +62,14 @@ CFLAGS += -D_BSD_SOURCE
 CFLAGS += -D_DEFAULT_SOURCE
 CFLAGS += -D_XOPEN_SOURCE=600
 CFLAGS += $(WERROR_FLAGS)
+ifeq ($(CONFIG_RTE_LIBRTE_MLX4_DLOPEN_DEPS),y)
+CFLAGS += -DMLX4_GLUE='"$(LIB_GLUE)"'
+CFLAGS += -DMLX4_GLUE_VERSION='"$(LIB_GLUE_VERSION)"'
+CFLAGS_mlx4_glue.o += -fPIC
+LDLIBS += -ldl
+else
 LDLIBS += -libverbs
+endif
 
 # A few warnings cannot be avoided in external headers.
 CFLAGS += -Wno-error=cast-qual
@@ -131,7 +148,24 @@ mlx4_autoconf.h: mlx4_autoconf.h.new
 
 mlx4.o: mlx4_autoconf.h
 
+# Generate dependency plug-in for rdma-core when the PMD must not be linked
+# directly, so that applications do not inherit this dependency.
+
+ifeq ($(CONFIG_RTE_LIBRTE_MLX4_DLOPEN_DEPS),y)
+
+$(LIB): $(LIB_GLUE)
+
+$(LIB_GLUE): mlx4_glue.o
+	$Q $(LD) $(LDFLAGS) $(EXTRA_LDFLAGS) \
+		-Wl,-h,$(LIB_GLUE) \
+		-s -shared -o $@ $< -libverbs
+
+mlx4_glue.o: mlx4_autoconf.h
+
+endif
+
 clean_mlx4: FORCE
 	$Q rm -f -- mlx4_autoconf.h mlx4_autoconf.h.new
+	$Q rm -f -- mlx4_glue.o $(LIB_GLUE_BASE)*
 
 clean: clean_mlx4

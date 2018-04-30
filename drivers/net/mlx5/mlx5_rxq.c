@@ -62,6 +62,7 @@
 #endif
 
 #include "mlx5.h"
+#include "mlx5_glue.h"
 #include "mlx5_rxtx.h"
 #include "mlx5_utils.h"
 #include "mlx5_autoconf.h"
@@ -410,8 +411,8 @@ priv_create_hash_rxqs(struct priv *priv)
 			ind_tbl_size = priv->reta_idx_n;
 		ind_init_attr.log_ind_tbl_size = log2above(ind_tbl_size);
 		errno = 0;
-		ind_table = ibv_exp_create_rwq_ind_table(priv->ctx,
-							 &ind_init_attr);
+		ind_table = mlx5_glue->exp_create_rwq_ind_table(priv->ctx,
+								&ind_init_attr);
 		if (ind_table != NULL) {
 			(*ind_tables)[i] = ind_table;
 			continue;
@@ -464,7 +465,8 @@ priv_create_hash_rxqs(struct priv *priv)
 		      j, i, type);
 		*hash_rxq = (struct hash_rxq){
 			.priv = priv,
-			.qp = ibv_exp_create_qp(priv->ctx, &qp_init_attr),
+			.qp = mlx5_glue->exp_create_qp(priv->ctx,
+						       &qp_init_attr),
 			.type = type,
 		};
 		if (hash_rxq->qp == NULL) {
@@ -493,7 +495,7 @@ error:
 
 			if (qp == NULL)
 				continue;
-			claim_zero(ibv_destroy_qp(qp));
+			claim_zero(mlx5_glue->destroy_qp(qp));
 		}
 		rte_free(hash_rxqs);
 	}
@@ -504,7 +506,8 @@ error:
 
 			if (ind_table == NULL)
 				continue;
-			claim_zero(ibv_exp_destroy_rwq_ind_table(ind_table));
+			claim_zero(mlx5_glue->exp_destroy_rwq_ind_table
+				   (ind_table));
 		}
 		rte_free(ind_tables);
 	}
@@ -543,7 +546,7 @@ priv_destroy_hash_rxqs(struct priv *priv)
 		for (j = 0; (j != RTE_DIM(hash_rxq->mac_flow)); ++j)
 			for (k = 0; (k != RTE_DIM(hash_rxq->mac_flow[j])); ++k)
 				assert(hash_rxq->mac_flow[j][k] == NULL);
-		claim_zero(ibv_destroy_qp(hash_rxq->qp));
+		claim_zero(mlx5_glue->destroy_qp(hash_rxq->qp));
 	}
 	priv->hash_rxqs_n = 0;
 	rte_free(priv->hash_rxqs);
@@ -553,7 +556,7 @@ priv_destroy_hash_rxqs(struct priv *priv)
 			(*priv->ind_tables)[i];
 
 		assert(ind_table != NULL);
-		claim_zero(ibv_exp_destroy_rwq_ind_table(ind_table));
+		claim_zero(mlx5_glue->exp_destroy_rwq_ind_table(ind_table));
 	}
 	priv->ind_tables_n = 0;
 	rte_free(priv->ind_tables);
@@ -754,9 +757,9 @@ rxq_cleanup(struct rxq_ctrl *rxq_ctrl)
 		params = (struct ibv_exp_release_intf_params){
 			.comp_mask = 0,
 		};
-		claim_zero(ibv_exp_release_intf(rxq_ctrl->priv->ctx,
-						rxq_ctrl->if_wq,
-						&params));
+		claim_zero(mlx5_glue->exp_release_intf(rxq_ctrl->priv->ctx,
+						       rxq_ctrl->if_wq,
+						       &params));
 	}
 	if (rxq_ctrl->if_cq != NULL) {
 		assert(rxq_ctrl->priv != NULL);
@@ -765,14 +768,14 @@ rxq_cleanup(struct rxq_ctrl *rxq_ctrl)
 		params = (struct ibv_exp_release_intf_params){
 			.comp_mask = 0,
 		};
-		claim_zero(ibv_exp_release_intf(rxq_ctrl->priv->ctx,
-						rxq_ctrl->if_cq,
-						&params));
+		claim_zero(mlx5_glue->exp_release_intf(rxq_ctrl->priv->ctx,
+						       rxq_ctrl->if_cq,
+						       &params));
 	}
 	if (rxq_ctrl->wq != NULL)
-		claim_zero(ibv_exp_destroy_wq(rxq_ctrl->wq));
+		claim_zero(mlx5_glue->exp_destroy_wq(rxq_ctrl->wq));
 	if (rxq_ctrl->cq != NULL)
-		claim_zero(ibv_destroy_cq(rxq_ctrl->cq));
+		claim_zero(mlx5_glue->destroy_cq(rxq_ctrl->cq));
 	if (rxq_ctrl->rd != NULL) {
 		struct ibv_exp_destroy_res_domain_attr attr = {
 			.comp_mask = 0,
@@ -780,12 +783,11 @@ rxq_cleanup(struct rxq_ctrl *rxq_ctrl)
 
 		assert(rxq_ctrl->priv != NULL);
 		assert(rxq_ctrl->priv->ctx != NULL);
-		claim_zero(ibv_exp_destroy_res_domain(rxq_ctrl->priv->ctx,
-						      rxq_ctrl->rd,
-						      &attr));
+		claim_zero(mlx5_glue->exp_destroy_res_domain
+			   (rxq_ctrl->priv->ctx, rxq_ctrl->rd, &attr));
 	}
 	if (rxq_ctrl->mr != NULL)
-		claim_zero(ibv_dereg_mr(rxq_ctrl->mr));
+		claim_zero(mlx5_glue->dereg_mr(rxq_ctrl->mr));
 	memset(rxq_ctrl, 0, sizeof(*rxq_ctrl));
 }
 
@@ -821,7 +823,7 @@ rxq_rehash(struct rte_eth_dev *dev, struct rxq_ctrl *rxq_ctrl)
 		.attr_mask = IBV_EXP_WQ_ATTR_STATE,
 		.wq_state = IBV_EXP_WQS_RESET,
 	};
-	err = ibv_exp_modify_wq(rxq_ctrl->wq, &mod);
+	err = mlx5_glue->exp_modify_wq(rxq_ctrl->wq, &mod);
 	if (err) {
 		ERROR("%p: cannot reset WQ: %s", (void *)dev, strerror(err));
 		assert(err > 0);
@@ -840,7 +842,7 @@ rxq_rehash(struct rte_eth_dev *dev, struct rxq_ctrl *rxq_ctrl)
 		.attr_mask = IBV_EXP_WQ_ATTR_STATE,
 		.wq_state = IBV_EXP_WQS_RDY,
 	};
-	err = ibv_exp_modify_wq(rxq_ctrl->wq, &mod);
+	err = mlx5_glue->exp_modify_wq(rxq_ctrl->wq, &mod);
 	if (err) {
 		ERROR("%p: WQ state to IBV_EXP_WQS_RDY failed: %s",
 		      (void *)dev, strerror(err));
@@ -1007,7 +1009,7 @@ rxq_ctrl_setup(struct rte_eth_dev *dev, struct rxq_ctrl *rxq_ctrl,
 		.thread_model = IBV_EXP_THREAD_SINGLE,
 		.msg_model = IBV_EXP_MSG_HIGH_BW,
 	};
-	tmpl.rd = ibv_exp_create_res_domain(priv->ctx, &attr.rd);
+	tmpl.rd = mlx5_glue->exp_create_res_domain(priv->ctx, &attr.rd);
 	if (tmpl.rd == NULL) {
 		ret = ENOMEM;
 		ERROR("%p: RD creation failure: %s",
@@ -1023,8 +1025,8 @@ rxq_ctrl_setup(struct rte_eth_dev *dev, struct rxq_ctrl *rxq_ctrl,
 		attr.cq.flags |= IBV_EXP_CQ_COMPRESSED_CQE;
 		cqe_n = (desc * 2) - 1; /* Double the number of CQEs. */
 	}
-	tmpl.cq = ibv_exp_create_cq(priv->ctx, cqe_n, NULL, NULL, 0,
-				    &attr.cq);
+	tmpl.cq = mlx5_glue->exp_create_cq(priv->ctx, cqe_n, NULL, NULL, 0,
+					   &attr.cq);
 	if (tmpl.cq == NULL) {
 		ret = ENOMEM;
 		ERROR("%p: CQ creation failure: %s",
@@ -1089,7 +1091,7 @@ rxq_ctrl_setup(struct rte_eth_dev *dev, struct rxq_ctrl *rxq_ctrl,
 		     " up to date",
 		     (void *)dev);
 
-	tmpl.wq = ibv_exp_create_wq(priv->ctx, &attr.wq);
+	tmpl.wq = mlx5_glue->exp_create_wq(priv->ctx, &attr.wq);
 	if (tmpl.wq == NULL) {
 		ret = (errno ? errno : EINVAL);
 		ERROR("%p: WQ creation failure: %s",
@@ -1118,7 +1120,8 @@ rxq_ctrl_setup(struct rte_eth_dev *dev, struct rxq_ctrl *rxq_ctrl,
 		.intf = IBV_EXP_INTF_CQ,
 		.obj = tmpl.cq,
 	};
-	tmpl.if_cq = ibv_exp_query_intf(priv->ctx, &attr.params, &status);
+	tmpl.if_cq = mlx5_glue->exp_query_intf(priv->ctx, &attr.params,
+					       &status);
 	if (tmpl.if_cq == NULL) {
 		ERROR("%p: CQ interface family query failed with status %d",
 		      (void *)dev, status);
@@ -1129,7 +1132,8 @@ rxq_ctrl_setup(struct rte_eth_dev *dev, struct rxq_ctrl *rxq_ctrl,
 		.intf = IBV_EXP_INTF_WQ,
 		.obj = tmpl.wq,
 	};
-	tmpl.if_wq = ibv_exp_query_intf(priv->ctx, &attr.params, &status);
+	tmpl.if_wq = mlx5_glue->exp_query_intf(priv->ctx, &attr.params,
+					       &status);
 	if (tmpl.if_wq == NULL) {
 		ERROR("%p: WQ interface family query failed with status %d",
 		      (void *)dev, status);
@@ -1140,7 +1144,7 @@ rxq_ctrl_setup(struct rte_eth_dev *dev, struct rxq_ctrl *rxq_ctrl,
 		.attr_mask = IBV_EXP_WQ_ATTR_STATE,
 		.wq_state = IBV_EXP_WQS_RDY,
 	};
-	ret = ibv_exp_modify_wq(tmpl.wq, &mod);
+	ret = mlx5_glue->exp_modify_wq(tmpl.wq, &mod);
 	if (ret) {
 		ERROR("%p: WQ state to IBV_EXP_WQS_RDY failed: %s",
 		      (void *)dev, strerror(ret));

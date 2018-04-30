@@ -42,6 +42,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <dlfcn.h>
 #include <inttypes.h>
 #include <string.h>
 #include <errno.h>
@@ -72,6 +73,7 @@
 #ifdef PEDANTIC
 #pragma GCC diagnostic ignored "-Wpedantic"
 #endif
+#include <rte_config.h>
 #include <rte_ether.h>
 #include <rte_ethdev.h>
 #include <rte_dev.h>
@@ -95,6 +97,7 @@
 
 /* PMD header. */
 #include "mlx4.h"
+#include "mlx4_glue.h"
 
 /* Runtime logging through RTE_LOG() is enabled when not in debugging mode.
  * Intermediate LOG_*() macros add the required end-of-line characters. */
@@ -1003,8 +1006,9 @@ txq_alloc_elts(struct txq *txq, unsigned int elts_n)
 		goto error;
 	}
 	mr_linear =
-		ibv_reg_mr(txq->priv->pd, elts_linear, sizeof(*elts_linear),
-			   IBV_ACCESS_LOCAL_WRITE);
+		mlx4_glue->reg_mr(txq->priv->pd, elts_linear,
+				  sizeof(*elts_linear),
+				  IBV_ACCESS_LOCAL_WRITE);
 	if (mr_linear == NULL) {
 		ERROR("%p: unable to configure MR, ibv_reg_mr() failed",
 		      (void *)txq);
@@ -1034,7 +1038,7 @@ txq_alloc_elts(struct txq *txq, unsigned int elts_n)
 	return 0;
 error:
 	if (mr_linear != NULL)
-		claim_zero(ibv_dereg_mr(mr_linear));
+		claim_zero(mlx4_glue->dereg_mr(mr_linear));
 
 	rte_free(elts_linear);
 	rte_free(elts);
@@ -1071,7 +1075,7 @@ txq_free_elts(struct txq *txq)
 	txq->elts_linear = NULL;
 	txq->mr_linear = NULL;
 	if (mr_linear != NULL)
-		claim_zero(ibv_dereg_mr(mr_linear));
+		claim_zero(mlx4_glue->dereg_mr(mr_linear));
 
 	rte_free(elts_linear);
 	if (elts == NULL)
@@ -1115,9 +1119,9 @@ txq_cleanup(struct txq *txq)
 		params = (struct ibv_exp_release_intf_params){
 			.comp_mask = 0,
 		};
-		claim_zero(ibv_exp_release_intf(txq->priv->ctx,
-						txq->if_qp,
-						&params));
+		claim_zero(mlx4_glue->exp_release_intf(txq->priv->ctx,
+						       txq->if_qp,
+						       &params));
 	}
 	if (txq->if_cq != NULL) {
 		assert(txq->priv != NULL);
@@ -1126,14 +1130,14 @@ txq_cleanup(struct txq *txq)
 		params = (struct ibv_exp_release_intf_params){
 			.comp_mask = 0,
 		};
-		claim_zero(ibv_exp_release_intf(txq->priv->ctx,
-						txq->if_cq,
-						&params));
+		claim_zero(mlx4_glue->exp_release_intf(txq->priv->ctx,
+						       txq->if_cq,
+						       &params));
 	}
 	if (txq->qp != NULL)
-		claim_zero(ibv_destroy_qp(txq->qp));
+		claim_zero(mlx4_glue->destroy_qp(txq->qp));
 	if (txq->cq != NULL)
-		claim_zero(ibv_destroy_cq(txq->cq));
+		claim_zero(mlx4_glue->destroy_cq(txq->cq));
 	if (txq->rd != NULL) {
 		struct ibv_exp_destroy_res_domain_attr attr = {
 			.comp_mask = 0,
@@ -1141,15 +1145,15 @@ txq_cleanup(struct txq *txq)
 
 		assert(txq->priv != NULL);
 		assert(txq->priv->ctx != NULL);
-		claim_zero(ibv_exp_destroy_res_domain(txq->priv->ctx,
-						      txq->rd,
-						      &attr));
+		claim_zero(mlx4_glue->exp_destroy_res_domain(txq->priv->ctx,
+							     txq->rd,
+							     &attr));
 	}
 	for (i = 0; (i != elemof(txq->mp2mr)); ++i) {
 		if (txq->mp2mr[i].mp == NULL)
 			break;
 		assert(txq->mp2mr[i].mr != NULL);
-		claim_zero(ibv_dereg_mr(txq->mp2mr[i].mr));
+		claim_zero(mlx4_glue->dereg_mr(txq->mp2mr[i].mr));
 	}
 	memset(txq, 0, sizeof(*txq));
 }
@@ -1313,10 +1317,10 @@ mlx4_mp2mr(struct ibv_pd *pd, struct rte_mempool *mp)
 	DEBUG("mempool %p using start=%p end=%p size=%zu for MR",
 	      (void *)mp, (void *)start, (void *)end,
 	      (size_t)(end - start));
-	return ibv_reg_mr(pd,
-			  (void *)start,
-			  end - start,
-			  IBV_ACCESS_LOCAL_WRITE);
+	return mlx4_glue->reg_mr(pd,
+				 (void *)start,
+				 end - start,
+				 IBV_ACCESS_LOCAL_WRITE);
 }
 
 /**
@@ -1381,7 +1385,7 @@ txq_mp2mr(struct txq *txq, struct rte_mempool *mp)
 		DEBUG("%p: MR <-> MP table full, dropping oldest entry.",
 		      (void *)txq);
 		--i;
-		claim_zero(ibv_dereg_mr(txq->mp2mr[0].mr));
+		claim_zero(mlx4_glue->dereg_mr(txq->mp2mr[0].mr));
 		memmove(&txq->mp2mr[0], &txq->mp2mr[1],
 			(sizeof(txq->mp2mr) - sizeof(txq->mp2mr[0])));
 	}
@@ -1874,7 +1878,7 @@ txq_setup(struct rte_eth_dev *dev, struct txq *txq, uint16_t desc,
 		.thread_model = IBV_EXP_THREAD_SINGLE,
 		.msg_model = IBV_EXP_MSG_HIGH_BW,
 	};
-	tmpl.rd = ibv_exp_create_res_domain(priv->ctx, &attr.rd);
+	tmpl.rd = mlx4_glue->exp_create_res_domain(priv->ctx, &attr.rd);
 	if (tmpl.rd == NULL) {
 		ret = ENOMEM;
 		ERROR("%p: RD creation failure: %s",
@@ -1885,7 +1889,8 @@ txq_setup(struct rte_eth_dev *dev, struct txq *txq, uint16_t desc,
 		.comp_mask = IBV_EXP_CQ_INIT_ATTR_RES_DOMAIN,
 		.res_domain = tmpl.rd,
 	};
-	tmpl.cq = ibv_exp_create_cq(priv->ctx, desc, NULL, NULL, 0, &attr.cq);
+	tmpl.cq = mlx4_glue->exp_create_cq(priv->ctx, desc, NULL, NULL, 0,
+					   &attr.cq);
 	if (tmpl.cq == NULL) {
 		ret = ENOMEM;
 		ERROR("%p: CQ creation failure: %s",
@@ -1924,7 +1929,7 @@ txq_setup(struct rte_eth_dev *dev, struct txq *txq, uint16_t desc,
 		.comp_mask = (IBV_EXP_QP_INIT_ATTR_PD |
 			      IBV_EXP_QP_INIT_ATTR_RES_DOMAIN),
 	};
-	tmpl.qp = ibv_exp_create_qp(priv->ctx, &attr.init);
+	tmpl.qp = mlx4_glue->exp_create_qp(priv->ctx, &attr.init);
 	if (tmpl.qp == NULL) {
 		ret = (errno ? errno : EINVAL);
 		ERROR("%p: QP creation failure: %s",
@@ -1941,8 +1946,8 @@ txq_setup(struct rte_eth_dev *dev, struct txq *txq, uint16_t desc,
 		/* Primary port number. */
 		.port_num = priv->port
 	};
-	ret = ibv_exp_modify_qp(tmpl.qp, &attr.mod,
-				(IBV_EXP_QP_STATE | IBV_EXP_QP_PORT));
+	ret = mlx4_glue->exp_modify_qp(tmpl.qp, &attr.mod,
+				       (IBV_EXP_QP_STATE | IBV_EXP_QP_PORT));
 	if (ret) {
 		ERROR("%p: QP state to IBV_QPS_INIT failed: %s",
 		      (void *)dev, strerror(ret));
@@ -1957,14 +1962,14 @@ txq_setup(struct rte_eth_dev *dev, struct txq *txq, uint16_t desc,
 	attr.mod = (struct ibv_exp_qp_attr){
 		.qp_state = IBV_QPS_RTR
 	};
-	ret = ibv_exp_modify_qp(tmpl.qp, &attr.mod, IBV_EXP_QP_STATE);
+	ret = mlx4_glue->exp_modify_qp(tmpl.qp, &attr.mod, IBV_EXP_QP_STATE);
 	if (ret) {
 		ERROR("%p: QP state to IBV_QPS_RTR failed: %s",
 		      (void *)dev, strerror(ret));
 		goto error;
 	}
 	attr.mod.qp_state = IBV_QPS_RTS;
-	ret = ibv_exp_modify_qp(tmpl.qp, &attr.mod, IBV_EXP_QP_STATE);
+	ret = mlx4_glue->exp_modify_qp(tmpl.qp, &attr.mod, IBV_EXP_QP_STATE);
 	if (ret) {
 		ERROR("%p: QP state to IBV_QPS_RTS failed: %s",
 		      (void *)dev, strerror(ret));
@@ -1975,7 +1980,8 @@ txq_setup(struct rte_eth_dev *dev, struct txq *txq, uint16_t desc,
 		.intf = IBV_EXP_INTF_CQ,
 		.obj = tmpl.cq,
 	};
-	tmpl.if_cq = ibv_exp_query_intf(priv->ctx, &attr.params, &status);
+	tmpl.if_cq = mlx4_glue->exp_query_intf(priv->ctx, &attr.params,
+					       &status);
 	if (tmpl.if_cq == NULL) {
 		ERROR("%p: CQ interface family query failed with status %d",
 		      (void *)dev, status);
@@ -1993,7 +1999,8 @@ txq_setup(struct rte_eth_dev *dev, struct txq *txq, uint16_t desc,
 			 0),
 #endif
 	};
-	tmpl.if_qp = ibv_exp_query_intf(priv->ctx, &attr.params, &status);
+	tmpl.if_qp = mlx4_glue->exp_query_intf(priv->ctx, &attr.params,
+					       &status);
 	if (tmpl.if_qp == NULL) {
 		ERROR("%p: QP interface family query failed with status %d",
 		      (void *)dev, status);
@@ -2434,7 +2441,8 @@ rxq_del_flow(struct rxq *rxq, unsigned int mac_index, unsigned int vlan_index)
 	      (void *)rxq,
 	      (*mac)[0], (*mac)[1], (*mac)[2], (*mac)[3], (*mac)[4], (*mac)[5],
 	      mac_index, priv->vlan_filter[vlan_index].id);
-	claim_zero(ibv_destroy_flow(rxq->mac_flow[mac_index][vlan_index]));
+	claim_zero(mlx4_glue->destroy_flow
+		   (rxq->mac_flow[mac_index][vlan_index]));
 	rxq->mac_flow[mac_index][vlan_index] = NULL;
 }
 
@@ -2556,7 +2564,7 @@ rxq_add_flow(struct rxq *rxq, unsigned int mac_index, unsigned int vlan_index)
 	      ((vlan_index != -1u) ? priv->vlan_filter[vlan_index].id : -1u));
 	/* Create related flow. */
 	errno = 0;
-	flow = ibv_create_flow(rxq->qp, attr);
+	flow = mlx4_glue->create_flow(rxq->qp, attr);
 	if (flow == NULL) {
 		/* It's not clear whether errno is always set in this case. */
 		ERROR("%p: flow configuration failed, errno=%d: %s",
@@ -2786,7 +2794,7 @@ rxq_allmulticast_enable(struct rxq *rxq)
 	if (rxq->allmulti_flow != NULL)
 		return EBUSY;
 	errno = 0;
-	flow = ibv_create_flow(rxq->qp, &attr);
+	flow = mlx4_glue->create_flow(rxq->qp, &attr);
 	if (flow == NULL) {
 		/* It's not clear whether errno is always set in this case. */
 		ERROR("%p: flow configuration failed, errno=%d: %s",
@@ -2813,7 +2821,7 @@ rxq_allmulticast_disable(struct rxq *rxq)
 	DEBUG("%p: disabling allmulticast mode", (void *)rxq);
 	if (rxq->allmulti_flow == NULL)
 		return;
-	claim_zero(ibv_destroy_flow(rxq->allmulti_flow));
+	claim_zero(mlx4_glue->destroy_flow(rxq->allmulti_flow));
 	rxq->allmulti_flow = NULL;
 	DEBUG("%p: allmulticast mode disabled", (void *)rxq);
 }
@@ -2844,7 +2852,7 @@ rxq_promiscuous_enable(struct rxq *rxq)
 	if (rxq->promisc_flow != NULL)
 		return EBUSY;
 	errno = 0;
-	flow = ibv_create_flow(rxq->qp, &attr);
+	flow = mlx4_glue->create_flow(rxq->qp, &attr);
 	if (flow == NULL) {
 		/* It's not clear whether errno is always set in this case. */
 		ERROR("%p: flow configuration failed, errno=%d: %s",
@@ -2873,7 +2881,7 @@ rxq_promiscuous_disable(struct rxq *rxq)
 	DEBUG("%p: disabling promiscuous mode", (void *)rxq);
 	if (rxq->promisc_flow == NULL)
 		return;
-	claim_zero(ibv_destroy_flow(rxq->promisc_flow));
+	claim_zero(mlx4_glue->destroy_flow(rxq->promisc_flow));
 	rxq->promisc_flow = NULL;
 	DEBUG("%p: promiscuous mode disabled", (void *)rxq);
 }
@@ -2903,9 +2911,9 @@ rxq_cleanup(struct rxq *rxq)
 		params = (struct ibv_exp_release_intf_params){
 			.comp_mask = 0,
 		};
-		claim_zero(ibv_exp_release_intf(rxq->priv->ctx,
-						rxq->if_qp,
-						&params));
+		claim_zero(mlx4_glue->exp_release_intf(rxq->priv->ctx,
+						       rxq->if_qp,
+						       &params));
 	}
 	if (rxq->if_cq != NULL) {
 		assert(rxq->priv != NULL);
@@ -2914,18 +2922,18 @@ rxq_cleanup(struct rxq *rxq)
 		params = (struct ibv_exp_release_intf_params){
 			.comp_mask = 0,
 		};
-		claim_zero(ibv_exp_release_intf(rxq->priv->ctx,
-						rxq->if_cq,
-						&params));
+		claim_zero(mlx4_glue->exp_release_intf(rxq->priv->ctx,
+						       rxq->if_cq,
+						       &params));
 	}
 	if (rxq->qp != NULL) {
 		rxq_promiscuous_disable(rxq);
 		rxq_allmulticast_disable(rxq);
 		rxq_mac_addrs_del(rxq);
-		claim_zero(ibv_destroy_qp(rxq->qp));
+		claim_zero(mlx4_glue->destroy_qp(rxq->qp));
 	}
 	if (rxq->cq != NULL)
-		claim_zero(ibv_destroy_cq(rxq->cq));
+		claim_zero(mlx4_glue->destroy_cq(rxq->cq));
 	if (rxq->rd != NULL) {
 		struct ibv_exp_destroy_res_domain_attr attr = {
 			.comp_mask = 0,
@@ -2933,12 +2941,12 @@ rxq_cleanup(struct rxq *rxq)
 
 		assert(rxq->priv != NULL);
 		assert(rxq->priv->ctx != NULL);
-		claim_zero(ibv_exp_destroy_res_domain(rxq->priv->ctx,
-						      rxq->rd,
-						      &attr));
+		claim_zero(mlx4_glue->exp_destroy_res_domain(rxq->priv->ctx,
+							     rxq->rd,
+							     &attr));
 	}
 	if (rxq->mr != NULL)
-		claim_zero(ibv_dereg_mr(rxq->mr));
+		claim_zero(mlx4_glue->dereg_mr(rxq->mr));
 	memset(rxq, 0, sizeof(*rxq));
 }
 
@@ -3082,7 +3090,7 @@ mlx4_rx_burst_sp(void *dpdk_rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			DEBUG("rxq=%p, poll_length() failed (ret=%d)",
 			      (void *)rxq, ret);
 			/* ibv_poll_cq() must be used in case of failure. */
-			wcs_n = ibv_poll_cq(rxq->cq, 1, &wc);
+			wcs_n = mlx4_glue->poll_cq(rxq->cq, 1, &wc);
 			if (unlikely(wcs_n == 0))
 				break;
 			if (unlikely(wcs_n < 0)) {
@@ -3096,7 +3104,7 @@ mlx4_rx_burst_sp(void *dpdk_rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 				DEBUG("rxq=%p, wr_id=%" PRIu64 ": bad work"
 				      " completion status (%d): %s",
 				      (void *)rxq, wc.wr_id, wc.status,
-				      ibv_wc_status_str(wc.status));
+				      mlx4_glue->wc_status_str(wc.status));
 #ifdef MLX4_PMD_SOFT_COUNTERS
 				/* Increment dropped packets counter. */
 				++rxq->stats.idropped;
@@ -3221,7 +3229,7 @@ repost:
 #ifdef DEBUG_RECV
 	DEBUG("%p: reposting %d WRs", (void *)rxq, i);
 #endif
-	ret = ibv_post_recv(rxq->qp, head.next, &bad_wr);
+	ret = mlx4_glue->post_recv(rxq->qp, head.next, &bad_wr);
 	if (unlikely(ret)) {
 		/* Inability to repost WRs is fatal. */
 		DEBUG("%p: ibv_post_recv(): failed for WR %p: %s",
@@ -3300,7 +3308,7 @@ mlx4_rx_burst(void *dpdk_rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 			DEBUG("rxq=%p, poll_length() failed (ret=%d)",
 			      (void *)rxq, ret);
 			/* ibv_poll_cq() must be used in case of failure. */
-			wcs_n = ibv_poll_cq(rxq->cq, 1, &wc);
+			wcs_n = mlx4_glue->poll_cq(rxq->cq, 1, &wc);
 			if (unlikely(wcs_n == 0))
 				break;
 			if (unlikely(wcs_n < 0)) {
@@ -3314,7 +3322,7 @@ mlx4_rx_burst(void *dpdk_rxq, struct rte_mbuf **pkts, uint16_t pkts_n)
 				DEBUG("rxq=%p, wr_id=%" PRIu64 ": bad work"
 				      " completion status (%d): %s",
 				      (void *)rxq, wc.wr_id, wc.status,
-				      ibv_wc_status_str(wc.status));
+				      mlx4_glue->wc_status_str(wc.status));
 #ifdef MLX4_PMD_SOFT_COUNTERS
 				/* Increment dropped packets counter. */
 				++rxq->stats.idropped;
@@ -3483,7 +3491,7 @@ rxq_setup_qp(struct priv *priv, struct ibv_cq *cq, uint16_t desc,
 	attr.max_inl_recv = priv->inl_recv_size;
 	attr.comp_mask |= IBV_EXP_QP_INIT_ATTR_INL_RECV;
 #endif
-	return ibv_exp_create_qp(priv->ctx, &attr);
+	return mlx4_glue->exp_create_qp(priv->ctx, &attr);
 }
 
 #ifdef RSS_SUPPORT
@@ -3548,7 +3556,7 @@ rxq_setup_qp_rss(struct priv *priv, struct ibv_cq *cq, uint16_t desc,
 		attr.qpg.qpg_parent = priv->rxq_parent.qp;
 		DEBUG("initializing child RSS queue");
 	}
-	return ibv_exp_create_qp(priv->ctx, &attr);
+	return mlx4_glue->exp_create_qp(priv->ctx, &attr);
 }
 
 #endif /* RSS_SUPPORT */
@@ -3633,13 +3641,13 @@ rxq_rehash(struct rte_eth_dev *dev, struct rxq *rxq)
 	/* From now on, any failure will render the queue unusable.
 	 * Reinitialize QP. */
 	mod = (struct ibv_exp_qp_attr){ .qp_state = IBV_QPS_RESET };
-	err = ibv_exp_modify_qp(tmpl.qp, &mod, IBV_EXP_QP_STATE);
+	err = mlx4_glue->exp_modify_qp(tmpl.qp, &mod, IBV_EXP_QP_STATE);
 	if (err) {
 		ERROR("%p: cannot reset QP: %s", (void *)dev, strerror(err));
 		assert(err > 0);
 		return err;
 	}
-	err = ibv_resize_cq(tmpl.cq, desc_n);
+	err = mlx4_glue->resize_cq(tmpl.cq, desc_n);
 	if (err) {
 		ERROR("%p: cannot resize CQ: %s", (void *)dev, strerror(err));
 		assert(err > 0);
@@ -3651,12 +3659,12 @@ rxq_rehash(struct rte_eth_dev *dev, struct rxq *rxq)
 		/* Primary port number. */
 		.port_num = priv->port
 	};
-	err = ibv_exp_modify_qp(tmpl.qp, &mod,
-				(IBV_EXP_QP_STATE |
+	err = mlx4_glue->exp_modify_qp(tmpl.qp, &mod,
+				       (IBV_EXP_QP_STATE |
 #ifdef RSS_SUPPORT
-				 (parent ? IBV_EXP_QP_GROUP_RSS : 0) |
+					(parent ? IBV_EXP_QP_GROUP_RSS : 0) |
 #endif /* RSS_SUPPORT */
-				 IBV_EXP_QP_PORT));
+					IBV_EXP_QP_PORT));
 	if (err) {
 		ERROR("%p: QP state to IBV_QPS_INIT failed: %s",
 		      (void *)dev, strerror(err));
@@ -3731,11 +3739,11 @@ rxq_rehash(struct rte_eth_dev *dev, struct rxq *rxq)
 	rte_free(rxq->elts.sp);
 	rxq->elts.sp = NULL;
 	/* Post WRs. */
-	err = ibv_post_recv(tmpl.qp,
-			    (tmpl.sp ?
-			     &(*tmpl.elts.sp)[0].wr :
-			     &(*tmpl.elts.no_sp)[0].wr),
-			    &bad_wr);
+	err = mlx4_glue->post_recv(tmpl.qp,
+				   (tmpl.sp ?
+				    &(*tmpl.elts.sp)[0].wr :
+				    &(*tmpl.elts.no_sp)[0].wr),
+				   &bad_wr);
 	if (err) {
 		ERROR("%p: ibv_post_recv() failed for WR %p: %s",
 		      (void *)dev,
@@ -3746,7 +3754,7 @@ rxq_rehash(struct rte_eth_dev *dev, struct rxq *rxq)
 	mod = (struct ibv_exp_qp_attr){
 		.qp_state = IBV_QPS_RTR
 	};
-	err = ibv_exp_modify_qp(tmpl.qp, &mod, IBV_EXP_QP_STATE);
+	err = mlx4_glue->exp_modify_qp(tmpl.qp, &mod, IBV_EXP_QP_STATE);
 	if (err)
 		ERROR("%p: QP state to IBV_QPS_RTR failed: %s",
 		      (void *)dev, strerror(err));
@@ -3849,7 +3857,7 @@ skip_mr:
 		.thread_model = IBV_EXP_THREAD_SINGLE,
 		.msg_model = IBV_EXP_MSG_HIGH_BW,
 	};
-	tmpl.rd = ibv_exp_create_res_domain(priv->ctx, &attr.rd);
+	tmpl.rd = mlx4_glue->exp_create_res_domain(priv->ctx, &attr.rd);
 	if (tmpl.rd == NULL) {
 		ret = ENOMEM;
 		ERROR("%p: RD creation failure: %s",
@@ -3860,7 +3868,8 @@ skip_mr:
 		.comp_mask = IBV_EXP_CQ_INIT_ATTR_RES_DOMAIN,
 		.res_domain = tmpl.rd,
 	};
-	tmpl.cq = ibv_exp_create_cq(priv->ctx, desc, NULL, NULL, 0, &attr.cq);
+	tmpl.cq = mlx4_glue->exp_create_cq(priv->ctx, desc, NULL, NULL, 0,
+					   &attr.cq);
 	if (tmpl.cq == NULL) {
 		ret = ENOMEM;
 		ERROR("%p: CQ creation failure: %s",
@@ -3890,12 +3899,12 @@ skip_mr:
 		/* Primary port number. */
 		.port_num = priv->port
 	};
-	ret = ibv_exp_modify_qp(tmpl.qp, &mod,
-				(IBV_EXP_QP_STATE |
+	ret = mlx4_glue->exp_modify_qp(tmpl.qp, &mod,
+				       (IBV_EXP_QP_STATE |
 #ifdef RSS_SUPPORT
-				 (parent ? IBV_EXP_QP_GROUP_RSS : 0) |
+					(parent ? IBV_EXP_QP_GROUP_RSS : 0) |
 #endif /* RSS_SUPPORT */
-				 IBV_EXP_QP_PORT));
+					IBV_EXP_QP_PORT));
 	if (ret) {
 		ERROR("%p: QP state to IBV_QPS_INIT failed: %s",
 		      (void *)dev, strerror(ret));
@@ -3922,11 +3931,11 @@ skip_mr:
 		      (void *)dev, strerror(ret));
 		goto error;
 	}
-	ret = ibv_post_recv(tmpl.qp,
-			    (tmpl.sp ?
-			     &(*tmpl.elts.sp)[0].wr :
-			     &(*tmpl.elts.no_sp)[0].wr),
-			    &bad_wr);
+	ret = mlx4_glue->post_recv(tmpl.qp,
+				   (tmpl.sp ?
+				    &(*tmpl.elts.sp)[0].wr :
+				    &(*tmpl.elts.no_sp)[0].wr),
+				   &bad_wr);
 	if (ret) {
 		ERROR("%p: ibv_post_recv() failed for WR %p: %s",
 		      (void *)dev,
@@ -3938,7 +3947,7 @@ skip_alloc:
 	mod = (struct ibv_exp_qp_attr){
 		.qp_state = IBV_QPS_RTR
 	};
-	ret = ibv_exp_modify_qp(tmpl.qp, &mod, IBV_EXP_QP_STATE);
+	ret = mlx4_glue->exp_modify_qp(tmpl.qp, &mod, IBV_EXP_QP_STATE);
 	if (ret) {
 		ERROR("%p: QP state to IBV_QPS_RTR failed: %s",
 		      (void *)dev, strerror(ret));
@@ -3952,7 +3961,8 @@ skip_alloc:
 		.intf = IBV_EXP_INTF_CQ,
 		.obj = tmpl.cq,
 	};
-	tmpl.if_cq = ibv_exp_query_intf(priv->ctx, &attr.params, &status);
+	tmpl.if_cq = mlx4_glue->exp_query_intf(priv->ctx, &attr.params,
+					       &status);
 	if (tmpl.if_cq == NULL) {
 		ERROR("%p: CQ interface family query failed with status %d",
 		      (void *)dev, status);
@@ -3963,7 +3973,8 @@ skip_alloc:
 		.intf = IBV_EXP_INTF_QP_BURST,
 		.obj = tmpl.qp,
 	};
-	tmpl.if_qp = ibv_exp_query_intf(priv->ctx, &attr.params, &status);
+	tmpl.if_qp = mlx4_glue->exp_query_intf(priv->ctx, &attr.params,
+					       &status);
 	if (tmpl.if_qp == NULL) {
 		ERROR("%p: QP interface family query failed with status %d",
 		      (void *)dev, status);
@@ -4319,8 +4330,8 @@ mlx4_dev_close(struct rte_eth_dev *dev)
 		rxq_cleanup(&priv->rxq_parent);
 	if (priv->pd != NULL) {
 		assert(priv->ctx != NULL);
-		claim_zero(ibv_dealloc_pd(priv->pd));
-		claim_zero(ibv_close_device(priv->ctx));
+		claim_zero(mlx4_glue->dealloc_pd(priv->pd));
+		claim_zero(mlx4_glue->close_device(priv->ctx));
 	} else
 		assert(priv->ctx == NULL);
 	priv_dev_interrupt_handler_uninstall(priv, dev);
@@ -5383,7 +5394,7 @@ priv_dev_link_status_handler(struct priv *priv, struct rte_eth_dev *dev)
 
 	/* Read all message and acknowledge them. */
 	for (;;) {
-		if (ibv_get_async_event(priv->ctx, &event))
+		if (mlx4_glue->get_async_event(priv->ctx, &event))
 			break;
 
 		if (event.event_type == IBV_EVENT_PORT_ACTIVE ||
@@ -5392,7 +5403,7 @@ priv_dev_link_status_handler(struct priv *priv, struct rte_eth_dev *dev)
 		else
 			DEBUG("event type %d on port %d not handled",
 			      event.event_type, event.element.port_num);
-		ibv_ack_async_event(&event);
+		mlx4_glue->ack_async_event(&event);
 	}
 
 	if (port_change ^ priv->pending_alarm) {
@@ -5550,7 +5561,7 @@ mlx4_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 
 	/* Save PCI address. */
 	mlx4_dev[idx].pci_addr = pci_dev->addr;
-	list = ibv_get_device_list(&i);
+	list = mlx4_glue->get_device_list(&i);
 	if (list == NULL) {
 		assert(errno);
 		if (errno == ENOSYS) {
@@ -5580,12 +5591,12 @@ mlx4_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		      PCI_DEVICE_ID_MELLANOX_CONNECTX3VF);
 		INFO("PCI information matches, using device \"%s\" (VF: %s)",
 		     list[i]->name, (vf ? "true" : "false"));
-		attr_ctx = ibv_open_device(list[i]);
+		attr_ctx = mlx4_glue->open_device(list[i]);
 		err = errno;
 		break;
 	}
 	if (attr_ctx == NULL) {
-		ibv_free_device_list(list);
+		mlx4_glue->free_device_list(list);
 		switch (err) {
 		case 0:
 			WARN("cannot access device, is mlx4_ib loaded?");
@@ -5600,7 +5611,7 @@ mlx4_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 	ibv_dev = list[i];
 
 	DEBUG("device opened");
-	if (ibv_query_device(attr_ctx, &device_attr))
+	if (mlx4_glue->query_device(attr_ctx, &device_attr))
 		goto error;
 	INFO("%u port(s) detected", device_attr.phys_port_cnt);
 
@@ -5626,12 +5637,12 @@ mlx4_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 
 		DEBUG("using port %u (%08" PRIx32 ")", port, test);
 
-		ctx = ibv_open_device(ibv_dev);
+		ctx = mlx4_glue->open_device(ibv_dev);
 		if (ctx == NULL)
 			goto port_error;
 
 		/* Check port status. */
-		err = ibv_query_port(ctx, port, &port_attr);
+		err = mlx4_glue->query_port(ctx, port, &port_attr);
 		if (err) {
 			ERROR("port query failed: %s", strerror(err));
 			goto port_error;
@@ -5645,11 +5656,11 @@ mlx4_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 
 		if (port_attr.state != IBV_PORT_ACTIVE)
 			DEBUG("port %d is not active: \"%s\" (%d)",
-			      port, ibv_port_state_str(port_attr.state),
+			      port, mlx4_glue->port_state_str(port_attr.state),
 			      port_attr.state);
 
 		/* Allocate protection domain. */
-		pd = ibv_alloc_pd(ctx);
+		pd = mlx4_glue->alloc_pd(ctx);
 		if (pd == NULL) {
 			ERROR("PD allocation failure");
 			err = ENOMEM;
@@ -5674,7 +5685,7 @@ mlx4_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		priv->pd = pd;
 		priv->mtu = ETHER_MTU;
 #ifdef HAVE_EXP_QUERY_DEVICE
-		if (ibv_exp_query_device(ctx, &exp_device_attr)) {
+		if (mlx4_glue->exp_query_device(ctx, &exp_device_attr)) {
 			ERROR("ibv_exp_query_device() failed");
 			goto port_error;
 		}
@@ -5724,7 +5735,8 @@ mlx4_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 		if (priv->inl_recv_size) {
 			exp_device_attr.comp_mask =
 				IBV_EXP_DEVICE_ATTR_INLINE_RECV_SZ;
-			if (ibv_exp_query_device(ctx, &exp_device_attr)) {
+			if (mlx4_glue->exp_query_device(ctx,
+							&exp_device_attr)) {
 				INFO("Couldn't query device for inline-receive"
 				     " capabilities.");
 				priv->inl_recv_size = 0;
@@ -5785,7 +5797,7 @@ mlx4_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 			char name[RTE_ETH_NAME_MAX_LEN];
 
 			snprintf(name, sizeof(name), "%s port %u",
-				 ibv_get_device_name(ibv_dev), port);
+				 mlx4_glue->get_device_name(ibv_dev), port);
 			eth_dev = rte_eth_dev_allocate(name);
 		}
 		if (eth_dev == NULL) {
@@ -5841,9 +5853,9 @@ mlx4_pci_probe(struct rte_pci_driver *pci_drv, struct rte_pci_device *pci_dev)
 port_error:
 		rte_free(priv);
 		if (pd)
-			claim_zero(ibv_dealloc_pd(pd));
+			claim_zero(mlx4_glue->dealloc_pd(pd));
 		if (ctx)
-			claim_zero(ibv_close_device(ctx));
+			claim_zero(mlx4_glue->close_device(ctx));
 		if (eth_dev)
 			rte_eth_dev_release_port(eth_dev);
 		break;
@@ -5864,9 +5876,9 @@ port_error:
 
 error:
 	if (attr_ctx)
-		claim_zero(ibv_close_device(attr_ctx));
+		claim_zero(mlx4_glue->close_device(attr_ctx));
 	if (list)
-		ibv_free_device_list(list);
+		mlx4_glue->free_device_list(list);
 	assert(err >= 0);
 	return -err;
 }
@@ -5901,6 +5913,88 @@ static struct eth_driver mlx4_driver = {
 	.dev_private_size = sizeof(struct priv)
 };
 
+#ifdef RTE_LIBRTE_MLX4_DLOPEN_DEPS
+
+/**
+ * Initialization routine for run-time dependency on rdma-core.
+ */
+static int
+mlx4_glue_init(void)
+{
+	const char *path[] = {
+		/*
+		 * A basic security check is necessary before trusting
+		 * MLX4_GLUE_PATH, which may override RTE_EAL_PMD_PATH.
+		 */
+		(geteuid() == getuid() && getegid() == getgid() ?
+		 getenv("MLX4_GLUE_PATH") : NULL),
+		RTE_EAL_PMD_PATH,
+	};
+	unsigned int i = 0;
+	void *handle = NULL;
+	void **sym;
+	const char *dlmsg;
+
+	while (!handle && i != RTE_DIM(path)) {
+		const char *end;
+		size_t len;
+		int ret;
+
+		if (!path[i]) {
+			++i;
+			continue;
+		}
+		end = strpbrk(path[i], ":;");
+		if (!end)
+			end = path[i] + strlen(path[i]);
+		len = end - path[i];
+		ret = 0;
+		do {
+			char name[ret + 1];
+
+			ret = snprintf(name, sizeof(name), "%.*s%s" MLX4_GLUE,
+				       (int)len, path[i],
+				       (!len || *(end - 1) == '/') ? "" : "/");
+			if (ret == -1)
+				break;
+			if (sizeof(name) != (size_t)ret + 1)
+				continue;
+			DEBUG("looking for rdma-core glue as \"%s\"", name);
+			handle = dlopen(name, RTLD_LAZY);
+			break;
+		} while (1);
+		path[i] = end + 1;
+		if (!*end)
+			++i;
+	}
+	if (!handle) {
+		rte_errno = EINVAL;
+		dlmsg = dlerror();
+		if (dlmsg)
+			WARN("cannot load glue library: %s", dlmsg);
+		goto glue_error;
+	}
+	sym = dlsym(handle, "mlx4_glue");
+	if (!sym || !*sym) {
+		rte_errno = EINVAL;
+		dlmsg = dlerror();
+		if (dlmsg)
+			ERROR("cannot resolve glue symbol: %s", dlmsg);
+		goto glue_error;
+	}
+	mlx4_glue = *sym;
+	return 0;
+glue_error:
+	if (handle)
+		dlclose(handle);
+	WARN("cannot initialize PMD due to missing run-time"
+	     " dependency on rdma-core libraries (libibverbs,"
+	     " libmlx4)");
+	return -rte_errno;
+}
+
+#endif
+
 /**
  * Driver initialization routine.
  */
@@ -5916,7 +6010,26 @@ rte_mlx4_pmd_init(void)
 	 * using this PMD, which is not supported in forked processes.
 	 */
 	setenv("RDMAV_HUGEPAGES_SAFE", "1", 1);
-	ibv_fork_init();
+#ifdef RTE_LIBRTE_MLX4_DLOPEN_DEPS
+	if (mlx4_glue_init())
+		return;
+	assert(mlx4_glue);
+#endif
+#ifndef NDEBUG
+	/* Glue structure must not contain any NULL pointers. */
+	{
+		unsigned int i;
+
+		for (i = 0; i != sizeof(*mlx4_glue) / sizeof(void *); ++i)
+			assert(((const void *const *)mlx4_glue)[i]);
+	}
+#endif
+	if (strcmp(mlx4_glue->version, MLX4_GLUE_VERSION)) {
+		ERROR("rdma-core glue \"%s\" mismatch: \"%s\" is required",
+		      mlx4_glue->version, MLX4_GLUE_VERSION);
+		return;
+	}
+	mlx4_glue->fork_init();
 	rte_eal_pci_register(&mlx4_driver.pci_drv);
 }
 

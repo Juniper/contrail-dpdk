@@ -33,9 +33,15 @@ include $(RTE_SDK)/mk/rte.vars.mk
 
 # Library name.
 LIB = librte_pmd_mlx5.a
+LIB_GLUE = $(LIB_GLUE_BASE).$(LIB_GLUE_VERSION)
+LIB_GLUE_BASE = librte_pmd_mlx5_glue.so
+LIB_GLUE_VERSION = 17.02.1
 
 # Sources.
 SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5.c
+ifneq ($(CONFIG_RTE_LIBRTE_MLX5_DLOPEN_DEPS),y)
+SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5_glue.c
+endif
 SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5_rxq.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5_txq.c
 SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += mlx5_rxtx.c
@@ -57,6 +63,10 @@ DEPDIRS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += lib/librte_eal
 DEPDIRS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += lib/librte_mempool
 DEPDIRS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += lib/librte_kvargs
 
+ifeq ($(CONFIG_RTE_LIBRTE_MLX5_DLOPEN_DEPS),y)
+INSTALL-$(CONFIG_RTE_LIBRTE_MLX5_PMD)-lib += $(LIB_GLUE)
+endif
+
 # Basic CFLAGS.
 CFLAGS += -O3
 CFLAGS += -std=gnu99 -Wall -Wextra
@@ -67,7 +77,14 @@ CFLAGS += -D_DEFAULT_SOURCE
 CFLAGS += -D_XOPEN_SOURCE=600
 CFLAGS += $(WERROR_FLAGS)
 CFLAGS += -Wno-strict-prototypes
+ifeq ($(CONFIG_RTE_LIBRTE_MLX5_DLOPEN_DEPS),y)
+CFLAGS += -DMLX5_GLUE='"$(LIB_GLUE)"'
+CFLAGS += -DMLX5_GLUE_VERSION='"$(LIB_GLUE_VERSION)"'
+CFLAGS_mlx5_glue.o += -fPIC
+LDLIBS += -ldl
+else
 LDLIBS += -libverbs
+endif
 
 # A few warnings cannot be avoided in external headers.
 CFLAGS += -Wno-error=cast-qual
@@ -147,7 +164,24 @@ mlx5_autoconf.h: mlx5_autoconf.h.new
 
 $(SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD):.c=.o): mlx5_autoconf.h
 
+# Generate dependency plug-in for rdma-core when the PMD must not be linked
+# directly, so that applications do not inherit this dependency.
+
+ifeq ($(CONFIG_RTE_LIBRTE_MLX5_DLOPEN_DEPS),y)
+
+$(LIB): $(LIB_GLUE)
+
+$(LIB_GLUE): mlx5_glue.o
+	$Q $(LD) $(LDFLAGS) $(EXTRA_LDFLAGS) \
+		-Wl,-h,$(LIB_GLUE) \
+		-s -shared -o $@ $< -libverbs
+
+mlx5_glue.o: mlx5_autoconf.h
+
+endif
+
 clean_mlx5: FORCE
 	$Q rm -f -- mlx5_autoconf.h mlx5_autoconf.h.new
+	$Q rm -f -- mlx5_glue.o $(LIB_GLUE_BASE)*
 
 clean: clean_mlx5

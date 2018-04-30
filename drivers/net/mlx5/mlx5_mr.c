@@ -51,6 +51,7 @@
 #endif
 
 #include "mlx5.h"
+#include "mlx5_glue.h"
 #include "mlx5_rxtx.h"
 
 struct mlx5_check_mempool_data {
@@ -159,10 +160,10 @@ mlx5_mp2mr(struct ibv_pd *pd, struct rte_mempool *mp)
 	DEBUG("mempool %p using start=%p end=%p size=%zu for MR",
 	      (void *)mp, (void *)start, (void *)end,
 	      (size_t)(end - start));
-	return ibv_reg_mr(pd,
-			  (void *)start,
-			  end - start,
-			  IBV_ACCESS_LOCAL_WRITE);
+	return mlx5_glue->reg_mr(pd,
+				 (void *)start,
+				 end - start,
+				 IBV_ACCESS_LOCAL_WRITE);
 }
 
 /**
@@ -201,7 +202,7 @@ txq_mp2mr_reg(struct txq *txq, struct rte_mempool *mp, unsigned int idx)
 		DEBUG("%p: MR <-> MP table full, dropping oldest entry.",
 		      (void *)txq_ctrl);
 		--idx;
-		claim_zero(ibv_dereg_mr(txq_ctrl->txq.mp2mr[0].mr));
+		claim_zero(mlx5_glue->dereg_mr(txq_ctrl->txq.mp2mr[0].mr));
 		memmove(&txq_ctrl->txq.mp2mr[0], &txq_ctrl->txq.mp2mr[1],
 			(sizeof(txq_ctrl->txq.mp2mr) -
 			 sizeof(txq_ctrl->txq.mp2mr[0])));

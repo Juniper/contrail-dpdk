@@ -49,6 +49,7 @@
 #include "mlx5_utils.h"
 #include "mlx5.h"
 #include "mlx5_autoconf.h"
+#include "mlx5_glue.h"
 
 /**
  * Configure a VLAN filter.
@@ -159,7 +160,7 @@ priv_vlan_strip_queue_set(struct priv *priv, uint16_t idx, int on)
 		.vlan_offloads = vlan_offloads,
 	};
 
-	err = ibv_exp_modify_wq(rxq_ctrl->wq, &mod);
+	err = mlx5_glue->exp_modify_wq(rxq_ctrl->wq, &mod);
 	if (err) {
 		ERROR("%p: failed to modified stripping mode: %s",
 		      (void *)priv, strerror(err));

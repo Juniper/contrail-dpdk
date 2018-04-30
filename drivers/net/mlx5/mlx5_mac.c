@@ -63,6 +63,7 @@
 #endif
 
 #include "mlx5.h"
+#include "mlx5_glue.h"
 #include "mlx5_utils.h"
 #include "mlx5_rxtx.h"
 #include "mlx5_defs.h"
@@ -119,8 +120,8 @@ hash_rxq_del_mac_flow(struct hash_rxq *hash_rxq, unsigned int mac_index,
 	      (*mac)[0], (*mac)[1], (*mac)[2], (*mac)[3], (*mac)[4], (*mac)[5],
 	      mac_index,
 	      vlan_index);
-	claim_zero(ibv_exp_destroy_flow(hash_rxq->mac_flow
-					[mac_index][vlan_index]));
+	claim_zero(mlx5_glue->exp_destroy_flow(hash_rxq->mac_flow
+					       [mac_index][vlan_index]));
 	hash_rxq->mac_flow[mac_index][vlan_index] = NULL;
 }
 
@@ -287,7 +288,7 @@ hash_rxq_add_mac_flow(struct hash_rxq *hash_rxq, unsigned int mac_index,
 	      vlan_id);
 	/* Create related flow. */
 	errno = 0;
-	flow = ibv_exp_create_flow(hash_rxq->qp, attr);
+	flow = mlx5_glue->exp_create_flow(hash_rxq->qp, attr);
 	if (flow == NULL) {
 		/* It's not clear whether errno is always set in this case. */
 		ERROR("%p: flow configuration failed, errno=%d: %s",
