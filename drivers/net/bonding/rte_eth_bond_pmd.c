@@ -2008,6 +2008,11 @@ bond_ethdev_lsc_event_callback(uint8_t port_id, enum rte_eth_event_type type,
 	if (!bonded_eth_dev->data->dev_started)
 		return;
 
+	/* Synchronize lsc callback parallel calls either by real link event
+	 * from the slaves PMDs or by the bonding PMD itself.
+	 */
+	rte_spinlock_lock(&internals->lsc_lock);
+
 	/* verify that port_id is a valid slave of bonded port */
 	for (i = 0; i < internals->slave_count; i++) {
 		if (internals->slaves[i].port_id == port_id) {
@@ -2016,8 +2021,10 @@ bond_ethdev_lsc_event_callback(uint8_t port_id, enum rte_eth_event_type type,
 		}
 	}
 
-	if (!valid_slave)
+	if (!valid_slave) {
+		rte_spinlock_unlock(&internals->lsc_lock);
 		return;
+	}
 
 	/* Search for port in active port list */
 	active_pos = find_slave_by_id(internals->active_slaves,
@@ -2025,8 +2032,10 @@ bond_ethdev_lsc_event_callback(uint8_t port_id, enum rte_eth_event_type type,
 
 	rte_eth_link_get_nowait(port_id, &link);
 	if (link.link_status) {
-		if (active_pos < internals->active_slave_count)
+		if (active_pos < internals->active_slave_count) {
+			rte_spinlock_unlock(&internals->lsc_lock);
 			return;
+		}
 
 		/* if no active slave ports then set this port to be primary port */
 		if (internals->active_slave_count < 1) {
@@ -2048,6 +2057,7 @@ bond_ethdev_lsc_event_callback(uint8_t port_id, enum rte_eth_event_type type,
 				RTE_LOG(ERR, PMD,
 					"port %u invalid speed/duplex\n",
 					port_id);
+				rte_spinlock_unlock(&internals->lsc_lock);
 				return;
 			}
 		}
@@ -2059,8 +2069,10 @@ bond_ethdev_lsc_event_callback(uint8_t port_id, enum rte_eth_event_type type,
 				internals->primary_port == port_id)
 			bond_ethdev_primary_set(internals, port_id);
 	} else {
-		if (active_pos == internals->active_slave_count)
+		if (active_pos == internals->active_slave_count) {
+			rte_spinlock_unlock(&internals->lsc_lock);
 			return;
+		}
 
 		/* Remove from active slave list */
 		deactivate_slave(bonded_eth_dev, port_id);
@@ -2111,6 +2123,8 @@ bond_ethdev_lsc_event_callback(uint8_t port_id, enum rte_eth_event_type type,
 						RTE_ETH_EVENT_INTR_LSC, NULL);
 		}
 	}
+
+	rte_spinlock_unlock(&internals->lsc_lock);
 }
 
 static int

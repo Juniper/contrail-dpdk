@@ -197,15 +197,15 @@ priv_mac_addrs_disable(struct priv *priv)
 }
 
 /**
- * DPDK callback to remove a MAC address.
+ * Remove a MAC address from the internal array.
  *
  * @param dev
  *   Pointer to Ethernet device structure.
  * @param index
  *   MAC address index.
  */
-void
-mlx5_mac_addr_remove(struct rte_eth_dev *dev, uint32_t index)
+static void
+mlx5_internal_mac_addr_remove(struct rte_eth_dev *dev, uint32_t index)
 {
 	struct priv *priv = dev->data->dev_private;
 
@@ -213,10 +213,11 @@ mlx5_mac_addr_remove(struct rte_eth_dev *dev, uint32_t index)
 		return;
 
 	priv_lock(priv);
-	DEBUG("%p: removing MAC address from index %" PRIu32,
-	      (void *)dev, index);
-	if (index >= RTE_DIM(priv->mac))
+	assert(index < MLX5_MAX_MAC_ADDRESSES);
+	if (is_zero_ether_addr(&dev->data->mac_addrs[index]))
 		goto end;
+        DEBUG("%p: removing MAC address from index %" PRIu32,
+              (void *)dev, index);
 	priv_mac_addr_del(priv, index);
 end:
 	priv_unlock(priv);
@@ -460,6 +461,59 @@ priv_mac_addrs_enable(struct priv *priv)
 }
 
 /**
+ * Adds a MAC address to the internal array.
+ *
+ * @param dev
+ *   Pointer to Ethernet device structure.
+ * @param mac_addr
+ *   MAC address to register.
+ * @param index
+ *   MAC address index.
+ */
+static int
+mlx5_internal_mac_addr_add(struct rte_eth_dev *dev, struct ether_addr *mac,
+			   uint32_t index)
+{
+	struct priv *priv = dev->data->dev_private;
+
+	if (mlx5_is_secondary())
+		return 0;
+
+	if (index >= MLX5_MAX_MAC_ADDRESSES) {
+		rte_errno = EINVAL;
+		return -rte_errno;
+	}
+	if (is_zero_ether_addr(mac)) {
+		rte_errno = EINVAL;
+		return -rte_errno;
+	}
+	priv_lock(priv);
+	DEBUG("%p: adding MAC address at index %" PRIu32,
+	      (void *)dev, index);
+	priv_mac_addr_add(priv, index,
+			  (const uint8_t (*)[ETHER_ADDR_LEN])
+			  mac->addr_bytes);
+	priv_unlock(priv);
+	return 0;
+}
+
+/**
+ * DPDK callback to remove a MAC address.
+ *
+ * @param dev
+ *   Pointer to Ethernet device structure.
+ * @param index
+ *   MAC address index.
+ */
+void
+mlx5_mac_addr_remove(struct rte_eth_dev *dev, uint32_t index)
+{
+	if (index >= MLX5_MAX_UC_MAC_ADDRESSES)
+		return;
+	mlx5_internal_mac_addr_remove(dev, index);
+}
+
+/**
  * DPDK callback to add a MAC address.
  *
  * @param dev
@@ -472,25 +526,13 @@ priv_mac_addrs_enable(struct priv *priv)
  *   VMDq pool index to associate address with (ignored).
  */
 void
-mlx5_mac_addr_add(struct rte_eth_dev *dev, struct ether_addr *mac_addr,
-		  uint32_t index, uint32_t vmdq)
+mlx5_mac_addr_add(struct rte_eth_dev *dev, struct ether_addr *mac,
+		  uint32_t index, uint32_t vmdq __rte_unused)
 {
-	struct priv *priv = dev->data->dev_private;
-
-	if (mlx5_is_secondary())
-		return;
-
-	(void)vmdq;
-	priv_lock(priv);
-	DEBUG("%p: adding MAC address at index %" PRIu32,
-	      (void *)dev, index);
-	if (index >= RTE_DIM(priv->mac))
-		goto end;
-	priv_mac_addr_add(priv, index,
-			  (const uint8_t (*)[ETHER_ADDR_LEN])
-			  mac_addr->addr_bytes);
-end:
-	priv_unlock(priv);
+	if (index >= MLX5_MAX_UC_MAC_ADDRESSES)
+		rte_errno = EINVAL;
+	else
+		mlx5_internal_mac_addr_add(dev, mac, index);
 }
 
 /**
@@ -507,4 +549,35 @@ mlx5_mac_addr_set(struct rte_eth_dev *dev, struct ether_addr *mac_addr)
 	DEBUG("%p: setting primary MAC address", (void *)dev);
 	mlx5_mac_addr_remove(dev, 0);
 	mlx5_mac_addr_add(dev, mac_addr, 0, 0);
+}
+
+/**
+ * DPDK callback to set multicast addresses list.
+ *
+ * @param dev
+ *   Pointer to Ethernet device structure.
+ * @param mac_addr_set
+ *   Multicast MAC address pointer array.
+ * @param nb_mac_addr
+ *   Number of entries in the array.
+ *
+ * @return
+ *   0 on success, a negative errno value otherwise and rte_errno is set.
+ */
+int
+mlx5_set_mc_addr_list(struct rte_eth_dev *dev,
+		      struct ether_addr *mc_addr_set, uint32_t nb_mc_addr)
+{
+	uint32_t i;
+	int ret;
+
+	for (i = MLX5_MAX_UC_MAC_ADDRESSES; i != MLX5_MAX_MAC_ADDRESSES; ++i)
+		mlx5_internal_mac_addr_remove(dev, i);
+	i = MLX5_MAX_UC_MAC_ADDRESSES;
+	while (nb_mc_addr--) {
+		ret = mlx5_internal_mac_addr_add(dev, mc_addr_set++, i++);
+		if (ret)
+			return ret;
+	}
+	return 0;
 }

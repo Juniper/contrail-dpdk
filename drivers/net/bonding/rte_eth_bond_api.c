@@ -215,6 +215,7 @@ rte_eth_bond_create(const char *name, uint8_t mode, uint8_t socket_id)
 	eth_dev->data->numa_node =  socket_id;
 
 	rte_spinlock_init(&internals->lock);
+	rte_spinlock_init(&internals->lsc_lock);
 
 	internals->port_id = eth_dev->data->port_id;
 	internals->mode = BONDING_MODE_INVALID;
