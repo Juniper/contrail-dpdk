@@ -46,6 +46,7 @@
 
 #include "mlx5.h"
 #include "mlx5_rxtx.h"
+#include "mlx5_glue.h"
 
 struct mlx5_check_mempool_data {
 	int ret;
@@ -305,8 +306,8 @@ mlx5_mr_new(struct rte_eth_dev *dev, struct rte_mempool *mp)
 		" region",
 		dev->data->port_id, (void *)mp, (void *)start, (void *)end,
 		(size_t)(end - start));
-	mr->mr = ibv_reg_mr(priv->pd, (void *)start, end - start,
-			    IBV_ACCESS_LOCAL_WRITE);
+	mr->mr = mlx5_glue->reg_mr(priv->pd, (void *)start, end - start,
+				   IBV_ACCESS_LOCAL_WRITE);
 	if (!mr->mr) {
 		rte_errno = ENOMEM;
 		return NULL;
@@ -368,7 +369,7 @@ mlx5_mr_release(struct mlx5_mr *mr)
 	DRV_LOG(DEBUG, "memory region %p refcnt: %d", (void *)mr,
 		rte_atomic32_read(&mr->refcnt));
 	if (rte_atomic32_dec_and_test(&mr->refcnt)) {
-		claim_zero(ibv_dereg_mr(mr->mr));
+		claim_zero(mlx5_glue->dereg_mr(mr->mr));
 		LIST_REMOVE(mr, next);
 		rte_free(mr);
 		return 0;

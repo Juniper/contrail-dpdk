@@ -63,6 +63,7 @@
 #include <rte_malloc.h>
 
 #include "mlx5.h"
+#include "mlx5_glue.h"
 #include "mlx5_rxtx.h"
 #include "mlx5_utils.h"
 
@@ -916,7 +917,7 @@ mlx5_dev_status_handler(struct rte_eth_dev *dev)
 	}
 	/* Read all message and acknowledge them. */
 	for (;;) {
-		if (ibv_get_async_event(priv->ctx, &event))
+		if (mlx5_glue->get_async_event(priv->ctx, &event))
 			break;
 		if ((event.event_type == IBV_EVENT_PORT_ACTIVE ||
 			event.event_type == IBV_EVENT_PORT_ERR) &&
@@ -929,7 +930,7 @@ mlx5_dev_status_handler(struct rte_eth_dev *dev)
 			DRV_LOG(DEBUG,
 				"port %u event type %d on not handled",
 				dev->data->port_id, event.event_type);
-		ibv_ack_async_event(&event);
+		mlx5_glue->ack_async_event(&event);
 	}
 	return ret;
 }
