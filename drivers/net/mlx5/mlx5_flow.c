@@ -39,11 +39,7 @@
 #define MLX5_IPV6 6
 #define MLX5_GRE 47
 
-#ifndef HAVE_IBV_DEVICE_COUNTERS_SET_SUPPORT
-struct ibv_flow_spec_counter_action {
-	int dummy;
-};
-#endif
+
 
 /* Dev ops structure defined in mlx5.c */
 extern const struct eth_dev_ops mlx5_dev_ops;
@@ -981,10 +977,15 @@ mlx5_flow_convert_items_validate(struct rte_eth_dev *dev,
 				sizeof(struct ibv_flow_spec_action_tag);
 	}
 	if (parser->count) {
+     #ifdef HAVE_IBV_DEVICE_COUNTERS_SET_SUPPORT
 		unsigned int size = sizeof(struct ibv_flow_spec_counter_action);
 
 		for (i = 0; i != hash_rxq_init_n; ++i)
 			parser->queue[i].offset += size;
+     #else
+                ret = -ENOTSUP;
+                goto exit_item_not_supported;
+     #endif
 	}
 	return 0;
 exit_item_not_supported:
