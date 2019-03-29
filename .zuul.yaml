@@ -1,0 +1,5 @@
+- project:
+    name: Juniper/contrail-dpdk
+    experimental:
+      jobs:
+        - contrail-base-variant-run   # x
