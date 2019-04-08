@@ -1756,6 +1756,11 @@ slave_configure(struct rte_eth_dev *bonded_eth_dev,
 		slave_eth_dev->data->dev_conf.rxmode.offloads &=
 				~DEV_RX_OFFLOAD_JUMBO_FRAME;
 
+        /* Pass the ignore_offload_bitfield to slave as well, otherwise
+         * the mtu will be limited to 1500 */
+	slave_eth_dev->data->dev_conf.rxmode.ignore_offload_bitfield =
+		bonded_eth_dev->data->dev_conf.rxmode.ignore_offload_bitfield;
+
 	nb_rx_queues = bonded_eth_dev->data->nb_rx_queues;
 	nb_tx_queues = bonded_eth_dev->data->nb_tx_queues;
 
