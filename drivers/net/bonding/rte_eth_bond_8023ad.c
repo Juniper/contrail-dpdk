@@ -877,7 +877,11 @@ bond_mode_8023ad_activate_slave(struct rte_eth_dev *bond_dev, uint8_t slave_id)
 
 	/* use this port as agregator */
 	port->aggregator_port_id = slave_id;
-	rte_eth_promiscuous_enable(slave_id);
+        /* we may not need to enable promiscuous mode 
+         * We just need to enable all multicast mode 
+         */
+	/* rte_eth_promiscuous_enable(slave_id); */
+	rte_eth_allmulticast_enable(slave_id);
 
 	timer_cancel(&port->warning_timer);
 
