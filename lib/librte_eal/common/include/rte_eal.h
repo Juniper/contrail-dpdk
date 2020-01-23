@@ -512,6 +512,7 @@ __rte_deprecated
 const char *
 rte_eal_mbuf_default_mempool_ops(void);
 
+extern int dpdk_lcore_cpuset[32];
 #ifdef __cplusplus
 }
 #endif

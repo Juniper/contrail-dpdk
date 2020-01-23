@@ -34,6 +34,8 @@
 #define LCORE_OPT_MSK 2
 #define LCORE_OPT_MAP 3
 
+int dpdk_lcore_cpuset[32] = {-1};
+
 const char
 eal_short_options[] =
 	"b:" /* pci-blacklist */
@@ -200,7 +202,33 @@ eal_reset_internal_config(struct internal_config *internal_cfg)
 	internal_cfg->vmware_tsc_map = 0;
 	internal_cfg->create_uio_dev = 0;
 	internal_cfg->user_mbuf_pool_ops_name = NULL;
+	CPU_ZERO(&internal_cfg->ctrl_cpuset);
 	internal_cfg->init_complete = 0;
+}
+
+static void
+compute_ctrl_threads_cpuset(struct internal_config *internal_cfg)
+{
+    rte_cpuset_t *cpuset = &internal_cfg->ctrl_cpuset;
+    rte_cpuset_t default_set;
+    unsigned int lcore_id;
+
+    for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
+        if (eal_cpu_detected(lcore_id) &&
+                rte_lcore_has_role(lcore_id, ROLE_OFF)) {
+            CPU_SET(lcore_id, cpuset);
+	}
+    }
+
+    if (pthread_getaffinity_np(pthread_self(), sizeof(rte_cpuset_t),
+                &default_set))
+        CPU_ZERO(&default_set);
+
+    RTE_CPU_AND(cpuset, cpuset, &default_set);
+
+    /* if no detected CPU is off, use master core */
+    if (!CPU_COUNT(cpuset))
+        CPU_SET(rte_get_master_lcore(), cpuset);
 }
 
 static int
@@ -1264,7 +1292,7 @@ eal_auto_detect_cores(struct rte_config *cfg)
 int
 eal_adjust_config(struct internal_config *internal_cfg)
 {
-	int i;
+	int i = 0;
 	struct rte_config *cfg = rte_eal_get_configuration();
 
 	if (!core_parsed)
@@ -1278,7 +1306,17 @@ eal_adjust_config(struct internal_config *internal_cfg)
 		cfg->master_lcore = rte_get_next_lcore(-1, 0, 0);
 		lcore_config[cfg->master_lcore].core_role = ROLE_RTE;
 	}
+	CPU_ZERO(&internal_cfg->ctrl_cpuset);
 
+	if (dpdk_lcore_cpuset[0] == -1)
+	    compute_ctrl_threads_cpuset(internal_cfg);
+	else {
+	    for (i = 0; i < 32; i++) {
+                if ((dpdk_lcore_cpuset[i] == 0) && (i > 0))
+	            break;
+	        CPU_SET(dpdk_lcore_cpuset[i], &internal_cfg->ctrl_cpuset);
+	    }
+	}
 	/* if no memory amounts were requested, this will result in 0 and
 	 * will be overridden later, right after eal_hugepage_info_init() */
 	for (i = 0; i < RTE_MAX_NUMA_NODES; i++)
