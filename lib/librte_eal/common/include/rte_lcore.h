@@ -23,11 +23,21 @@ extern "C" {
 #define LCORE_ID_ANY     UINT32_MAX       /**< Any lcore. */
 
 #if defined(__linux__)
-	typedef	cpu_set_t rte_cpuset_t;
+typedef cpu_set_t rte_cpuset_t;
+#define RTE_CPU_AND(dst, src1, src2) CPU_AND(dst, src1, src2)
 #elif defined(__FreeBSD__)
 #include <pthread_np.h>
-	typedef cpuset_t rte_cpuset_t;
+typedef cpuset_t rte_cpuset_t;
+#define RTE_CPU_AND(dst, src1, src2) do \
+{\
+      cpuset_t tmp; \
+      CPU_COPY(src1, &tmp); \
+      CPU_AND(&tmp, src2); \
+      CPU_COPY(&tmp, dst); \
+} while (0)
 #endif
+
+extern rte_cpuset_t dpdk_ctrl_thread_set;
 
 /**
  * Structure storing internal configuration (per-lcore)
