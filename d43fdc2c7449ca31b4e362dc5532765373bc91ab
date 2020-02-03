@@ -16,6 +16,24 @@
       "revId": "d43fdc2c7449ca31b4e362dc5532765373bc91ab",
       "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "5a836cee_377d3e0f",
+        "filename": "config/common_linuxapp",
+        "patchSetId": 1
+      },
+      "lineNbr": 12,
+      "author": {
+        "id": 232
+      },
+      "writtenOn": "2020-02-03T07:57:51Z",
+      "side": 1,
+      "message": "both are same.. i retained here just so that in future if for any reason, we want to enable it (for debug, troubleshooting etc.), it will be easier to make it \u0027y\u0027",
+      "parentUuid": "f7b166b7_c0fb77f4",
+      "revId": "d43fdc2c7449ca31b4e362dc5532765373bc91ab",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
     }
   ]
 }
