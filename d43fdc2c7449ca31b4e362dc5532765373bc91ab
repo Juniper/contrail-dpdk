@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "f7b166b7_c0fb77f4",
+        "filename": "config/common_linuxapp",
+        "patchSetId": 1
+      },
+      "lineNbr": 12,
+      "author": {
+        "id": 641
+      },
+      "writtenOn": "2020-02-03T07:27:49Z",
+      "side": 1,
+      "message": "Why are these lines not removed?",
+      "revId": "d43fdc2c7449ca31b4e362dc5532765373bc91ab",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    }
+  ]
+}
