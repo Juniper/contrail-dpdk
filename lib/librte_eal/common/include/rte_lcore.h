@@ -37,6 +37,8 @@ typedef cpuset_t rte_cpuset_t;
 } while (0)
 #endif
 
+extern rte_cpuset_t dpdk_ctrl_thread_set;
+
 /**
  * Structure storing internal configuration (per-lcore)
  */
