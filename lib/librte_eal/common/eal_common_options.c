@@ -120,6 +120,8 @@ static int master_lcore_parsed;
 static int mem_parsed;
 static int core_parsed;
 
+rte_cpuset_t dpdk_ctrl_thread_set;
+
 static int
 eal_option_device_add(enum rte_devtype type, const char *optarg)
 {
@@ -848,6 +850,9 @@ eal_parse_lcores(const char *lcores)
 						  set, RTE_DIM(set)))
 				goto err;
 			end = lcores + 1 + offset;
+
+			if (CPU_COUNT(&dpdk_ctrl_thread_set) == 0)
+				rte_memcpy(&dpdk_ctrl_thread_set, &cpuset, sizeof(rte_cpuset_t));
 		} else { /* ',' or '\0' */
 			/* haven't given cpu_set, current loop done */
 			end = lcores;
@@ -1305,7 +1310,10 @@ eal_adjust_config(struct internal_config *internal_cfg)
 		lcore_config[cfg->master_lcore].core_role = ROLE_RTE;
 	}
 
-	compute_ctrl_threads_cpuset(internal_cfg);
+        if (CPU_COUNT(&dpdk_ctrl_thread_set) == 0)
+	    compute_ctrl_threads_cpuset(internal_cfg);
+	else
+	    rte_memcpy(&internal_cfg->ctrl_cpuset, &dpdk_ctrl_thread_set, sizeof(rte_cpuset_t));
 
 	/* if no memory amounts were requested, this will result in 0 and
 	 * will be overridden later, right after eal_hugepage_info_init() */
