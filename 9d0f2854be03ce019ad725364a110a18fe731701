@@ -93,6 +93,30 @@
       "revId": "9d0f2854be03ce019ad725364a110a18fe731701",
       "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "645b3d9c_bf81dfdc",
+        "filename": "lib/librte_eal/common/eal_common_options.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 855,
+      "author": {
+        "id": 232
+      },
+      "writtenOn": "2020-02-03T11:40:20Z",
+      "side": 1,
+      "message": "this function is only for pattern --lcores\u003d\u0027\u003clcores[@cpus]\u003e[\u003c,lcores[@cpus]\u003e...]\u0027\nthis is a wrong way of using this function",
+      "parentUuid": "6649cf10_83578ee3",
+      "range": {
+        "startLine": 854,
+        "startChar": 2,
+        "endLine": 855,
+        "endChar": 69
+      },
+      "revId": "9d0f2854be03ce019ad725364a110a18fe731701",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
     }
   ]
 }
