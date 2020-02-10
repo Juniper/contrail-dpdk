@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "df7a9f47_4f447fac",
+        "filename": "lib/librte_eal/common/eal_common_options.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 1061,
+      "author": {
+        "id": 232
+      },
+      "writtenOn": "2020-02-10T10:02:27Z",
+      "side": 1,
+      "message": "This will look like a reserved word. Pl change it to something else.",
+      "range": {
+        "startLine": 1061,
+        "startChar": 24,
+        "endLine": 1061,
+        "endChar": 27
+      },
+      "revId": "cdbc2eaea05fa12fecbddf8dd4b5eaad8c797368",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    }
+  ]
+}
