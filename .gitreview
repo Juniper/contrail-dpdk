@@ -1,5 +1,17 @@
-[gerrit]
+
+#
+# Copyright (c) 2020 Juniper Networks, Inc. All rights reserved.
+#
+# OpenContrail Code Review System		
+#
+# Please visit opencontrail.org additional information.		
+#
+# e.g. After changes are complete and commited to a local branch, do		
+# 'git review' to submit changeset to review.opencontrail.org Code Review
+# (gerrit) System.
+#
+#[gerrit]
 host=review.opencontrail.org
 port=29418
 project=Juniper/contrail-dpdk.git
-defaultbranch=contrail_dpdk_18_05_1
+defaultbranch=dgautam-test3
