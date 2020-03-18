@@ -47,9 +47,9 @@ CPUFLAGS += AVX
 endif
 endif
 
-ifneq ($(filter $(AUTO_CPUFLAGS),__RDRND__),)
-CPUFLAGS += RDRAND
-endif
+#ifneq ($(filter $(AUTO_CPUFLAGS),__RDRND__),)
+#CPUFLAGS += RDRAND
+#endif
 
 ifneq ($(filter $(AUTO_CPUFLAGS),__RDSEED__),)
 CPUFLAGS += RDSEED
