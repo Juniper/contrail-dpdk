@@ -3727,6 +3727,33 @@ bond_ethdev_configure(struct rte_eth_dev *dev)
 		return -1;
 	}
 
+	/* Parse/set lacp rate */
+	arg_count = rte_kvargs_count(kvlist, PMD_BOND_LACP_RATE_KVARG);
+	if (arg_count == 1) {
+		uint8_t lacp_rate;
+
+		if (rte_kvargs_process(kvlist, PMD_BOND_LACP_RATE_KVARG,
+				&bond_ethdev_parse_lacp_rate_kvarg, &lacp_rate) !=
+						0) {
+			RTE_LOG(INFO, EAL,
+					"Invalid lacp rate specified for bonded device %s\n",
+					name);
+			return -1;
+		}
+
+		/* Set balance mode transmit policy*/
+		if (rte_eth_bond_lacp_rate_set(port_id, lacp_rate)
+				!= 0) {
+			RTE_LOG(ERR, EAL,
+					"Failed to set lacp rate on bonded device %s\n", name);
+			return -1;
+		}
+	} else if (arg_count > 1) {
+		RTE_LOG(INFO, EAL,
+				"Lacp rate can be specified only once for bonded device %s\n", name);
+		return -1;
+	}
+
 	return 0;
 }
 
@@ -3748,7 +3775,8 @@ RTE_PMD_REGISTER_PARAM_STRING(net_bonding,
 	"mac=<mac addr> "
 	"lsc_poll_period_ms=<int> "
 	"up_delay=<int> "
-	"down_delay=<int>");
+	"down_delay=<int> "
+        "lacp_rate=[fast | slow]");
 
 int bond_logtype;
 
