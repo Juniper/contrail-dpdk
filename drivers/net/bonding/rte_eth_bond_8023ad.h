@@ -331,4 +331,13 @@ rte_eth_bond_8023ad_agg_selection_get(uint16_t port_id);
 int
 rte_eth_bond_8023ad_agg_selection_set(uint16_t port_id,
 		enum rte_bond_8023ad_agg_selection agg_selection);
+
+/**
+ * Set slave to use fast lacp timeout
+ * @param port_id Bonding device id
+ * @return
+ *   0 on success, negative value otherwise
+ */
+int
+rte_eth_bond_8023ad_ext_set_fast(uint16_t port_id, uint16_t slave_id);
 #endif /* RTE_ETH_BOND_8023AD_H_ */
