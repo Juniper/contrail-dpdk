@@ -1050,3 +1050,30 @@ rte_eth_bond_link_up_prop_delay_get(uint16_t bonded_port_id)
 
 	return internals->link_up_delay_ms;
 }
+
+int
+rte_eth_bond_lacp_rate_set(uint16_t bonded_port_id, uint8_t lacp_rate)
+{
+    struct bond_dev_private *internals;
+
+    if (valid_bonded_port_id(bonded_port_id) != 0)
+        return -1;
+
+    internals = rte_eth_devices[bonded_port_id].data->dev_private;
+    internals->lacp_rate = lacp_rate;
+
+    return 0;
+}
+
+int
+rte_eth_bond_lacp_rate_get(uint16_t bonded_port_id)
+{
+    struct bond_dev_private *internals;
+
+    if (valid_bonded_port_id(bonded_port_id) != 0)
+        return -1;
+
+    internals = rte_eth_devices[bonded_port_id].data->dev_private;
+
+    return internals->lacp_rate;
+}
