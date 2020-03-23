@@ -491,6 +491,12 @@ mux_machine(struct bond_dev_private *internals, uint16_t slave_id)
 		MODE4_DEBUG("Out of sync -> ATTACHED\n");
 	}
 
+	if (internals->lacp_rate)
+		ACTOR_STATE_SET(port, LACP_SHORT_TIMEOUT);
+	else
+		ACTOR_STATE_CLR(port, LACP_SHORT_TIMEOUT);
+
+
 	if (!ACTOR_STATE(port, SYNCHRONIZATION)) {
 		/* attach mux to aggregator */
 		RTE_ASSERT((port->actor_state & (STATE_COLLECTING |
