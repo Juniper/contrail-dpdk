@@ -18,6 +18,7 @@ const char *pmd_bond_init_valid_arguments[] = {
 	PMD_BOND_SOCKET_ID_KVARG,
 	PMD_BOND_MAC_ADDR_KVARG,
 	PMD_BOND_AGG_MODE_KVARG,
+	PMD_BOND_LACP_RATE_KVARG,
 	"driver",
 	NULL
 };
@@ -298,4 +299,28 @@ bond_ethdev_parse_time_ms_kvarg(const char *key __rte_unused,
 	*(uint32_t *)extra_args = time_ms;
 
 	return 0;
+}
+
+int
+bond_ethdev_parse_lacp_rate_kvarg(const char *key __rte_unused,
+        const char *value, void *extra_args)
+{
+    uint8_t lacp_rate;
+
+    if (value == NULL || extra_args == NULL)
+        return -1;
+
+    if (strcmp(PMD_BOND_LACP_RATE_FAST_KVARG, value) == 0)
+        lacp_rate = LACP_RATE_FAST;
+    else if (strcmp("1", value) == 0)
+        lacp_rate = LACP_RATE_FAST;
+    else if (strcmp(PMD_BOND_LACP_RATE_SLOW_KVARG, value) == 0)
+        lacp_rate = LACP_RATE_SLOW;
+    else if (strcmp("0", value) == 0)
+        lacp_rate = LACP_RATE_SLOW;
+    else
+        return -1;
+
+    *(uint8_t *)extra_args = lacp_rate;
+    return 0;
 }
