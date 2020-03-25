@@ -1372,8 +1372,6 @@ rte_eth_dev_configure(uint16_t port_id, uint16_t nb_rx_q, uint16_t nb_tx_q,
 			port_id, dev_conf->rxmode.offloads,
 			dev_info.rx_offload_capa,
 			__func__);
-		ret = -EINVAL;
-		goto rollback;
 	}
 	if ((dev_conf->txmode.offloads & dev_info.tx_offload_capa) !=
 	     dev_conf->txmode.offloads) {
@@ -1383,8 +1381,6 @@ rte_eth_dev_configure(uint16_t port_id, uint16_t nb_rx_q, uint16_t nb_tx_q,
 			port_id, dev_conf->txmode.offloads,
 			dev_info.tx_offload_capa,
 			__func__);
-		ret = -EINVAL;
-		goto rollback;
 	}
 
 	dev->data->dev_conf.rx_adv_conf.rss_conf.rss_hf =
@@ -1398,8 +1394,6 @@ rte_eth_dev_configure(uint16_t port_id, uint16_t nb_rx_q, uint16_t nb_tx_q,
 			"Ethdev port_id=%u invalid rss_hf: 0x%"PRIx64", valid value: 0x%"PRIx64"\n",
 			port_id, dev_conf->rx_adv_conf.rss_conf.rss_hf,
 			dev_info.flow_type_rss_offloads);
-		ret = -EINVAL;
-		goto rollback;
 	}
 
 	/* Check if Rx RSS distribution is disabled but RSS hash is enabled. */
@@ -1409,8 +1403,6 @@ rte_eth_dev_configure(uint16_t port_id, uint16_t nb_rx_q, uint16_t nb_tx_q,
 			"Ethdev port_id=%u config invalid Rx mq_mode without RSS but %s offload is requested\n",
 			port_id,
 			rte_eth_dev_rx_offload_name(DEV_RX_OFFLOAD_RSS_HASH));
-		ret = -EINVAL;
-		goto rollback;
 	}
 
 	/*
@@ -1893,7 +1885,6 @@ rte_eth_rx_queue_setup(uint16_t port_id, uint16_t rx_queue_id,
 			port_id, rx_queue_id, local_conf.offloads,
 			dev_info.rx_queue_offload_capa,
 			__func__);
-		return -EINVAL;
 	}
 
 	/*
@@ -2087,7 +2078,6 @@ rte_eth_tx_queue_setup(uint16_t port_id, uint16_t tx_queue_id,
 			port_id, tx_queue_id, local_conf.offloads,
 			dev_info.tx_queue_offload_capa,
 			__func__);
-		return -EINVAL;
 	}
 
 	return eth_err(port_id, (*dev->dev_ops->tx_queue_setup)(dev,
