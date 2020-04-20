@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "74608665_ba32fbe4",
+        "filename": "lib/librte_eal/common/eal_common_options.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 44,
+      "author": {
+        "id": 232
+      },
+      "writtenOn": "2020-04-20T14:11:26Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "210df470_d63e97e7",
+      "revId": "eda9d4ca818e342db3a8c615663a30218feda673",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "3cb6af28_08e0ac63",
         "filename": "lib/librte_eal/common/eal_common_options.c",
         "patchSetId": 4
@@ -30,6 +48,24 @@
       "writtenOn": "2020-04-20T13:02:28Z",
       "side": 1,
       "message": "variable name could even be more relevant if you choose cpu_set ?",
+      "revId": "eda9d4ca818e342db3a8c615663a30218feda673",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "71da077a_d5734817",
+        "filename": "lib/librte_eal/common/eal_common_options.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 1205,
+      "author": {
+        "id": 232
+      },
+      "writtenOn": "2020-04-20T14:11:26Z",
+      "side": 1,
+      "message": "The same variable name \u0027set\u0027 is used in other similar places, so we used the same. Eg: eal_parse_lcores()",
+      "parentUuid": "3cb6af28_08e0ac63",
       "revId": "eda9d4ca818e342db3a8c615663a30218feda673",
       "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
       "unresolved": true
@@ -53,6 +89,24 @@
     },
     {
       "key": {
+        "uuid": "8d688f69_a419ba4b",
+        "filename": "lib/librte_eal/common/eal_common_options.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 1306,
+      "author": {
+        "id": 232
+      },
+      "writtenOn": "2020-04-20T14:11:26Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "17540158_8cba2998",
+      "revId": "eda9d4ca818e342db3a8c615663a30218feda673",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "f8e3971a_8e6218a7",
         "filename": "lib/librte_eal/common/eal_common_options.c",
         "patchSetId": 4
@@ -67,6 +121,24 @@
       "revId": "eda9d4ca818e342db3a8c615663a30218feda673",
       "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "658f4ec0_0309882d",
+        "filename": "lib/librte_eal/common/eal_common_options.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 1557,
+      "author": {
+        "id": 232
+      },
+      "writtenOn": "2020-04-20T14:11:26Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "f8e3971a_8e6218a7",
+      "revId": "eda9d4ca818e342db3a8c615663a30218feda673",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": false
     }
   ]
 }
