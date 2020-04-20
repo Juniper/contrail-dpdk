@@ -1,0 +1,72 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "210df470_d63e97e7",
+        "filename": "lib/librte_eal/common/eal_common_options.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 44,
+      "author": {
+        "id": 959
+      },
+      "writtenOn": "2020-04-20T13:02:28Z",
+      "side": 1,
+      "message": "I understand the limitation of available small case letters for this option, but you could pick \u0027C\u0027 instead, to hint a reason (for control threads).",
+      "revId": "eda9d4ca818e342db3a8c615663a30218feda673",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "3cb6af28_08e0ac63",
+        "filename": "lib/librte_eal/common/eal_common_options.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 1205,
+      "author": {
+        "id": 959
+      },
+      "writtenOn": "2020-04-20T13:02:28Z",
+      "side": 1,
+      "message": "variable name could even be more relevant if you choose cpu_set ?",
+      "revId": "eda9d4ca818e342db3a8c615663a30218feda673",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "17540158_8cba2998",
+        "filename": "lib/librte_eal/common/eal_common_options.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 1306,
+      "author": {
+        "id": 959
+      },
+      "writtenOn": "2020-04-20T13:02:28Z",
+      "side": 1,
+      "message": "please check indentation here.",
+      "revId": "eda9d4ca818e342db3a8c615663a30218feda673",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "f8e3971a_8e6218a7",
+        "filename": "lib/librte_eal/common/eal_common_options.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 1557,
+      "author": {
+        "id": 959
+      },
+      "writtenOn": "2020-04-20T13:02:28Z",
+      "side": 1,
+      "message": "Atleast for error-prone modifications anywhere later, please use braces.\n\nFor eg:\n if(condition) \n//    your statement; \u003c\u003c by mistake someone comments \u003e\u003e\n\nother statement;",
+      "revId": "eda9d4ca818e342db3a8c615663a30218feda673",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    }
+  ]
+}
