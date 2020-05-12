@@ -1372,8 +1372,6 @@ rte_eth_dev_configure(uint16_t port_id, uint16_t nb_rx_q, uint16_t nb_tx_q,
 			port_id, dev_conf->rxmode.offloads,
 			dev_info.rx_offload_capa,
 			__func__);
-		ret = -EINVAL;
-		goto rollback;
 	}
 	if ((dev_conf->txmode.offloads & dev_info.tx_offload_capa) !=
 	     dev_conf->txmode.offloads) {
