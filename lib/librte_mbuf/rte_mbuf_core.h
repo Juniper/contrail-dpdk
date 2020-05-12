@@ -184,9 +184,16 @@ extern "C" {
 #define PKT_RX_OUTER_L4_CKSUM_GOOD	(1ULL << 22)
 #define PKT_RX_OUTER_L4_CKSUM_INVALID	((1ULL << 21) | (1ULL << 22))
 
+//sagarc
+/* RX packet with TCPv4 segment offload */
+#define PKT_RX_GSO_TCP4      (1ULL << 23)
+/* RX packet with TCPv6 segment offload */
+#define PKT_RX_GSO_TCP6      (1ULL << 24)
+
+
 /* add new RX flags here, don't forget to update PKT_FIRST_FREE */
 
-#define PKT_FIRST_FREE (1ULL << 23)
+#define PKT_FIRST_FREE (1ULL << 25)//sagarc
 #define PKT_LAST_FREE (1ULL << 40)
 
 /* add new TX flags here, don't forget to update PKT_LAST_FREE  */
