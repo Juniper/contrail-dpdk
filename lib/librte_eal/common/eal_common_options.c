@@ -41,6 +41,7 @@ eal_short_options[] =
 	"b:" /* pci-blacklist */
 	"c:" /* coremask */
 	"s:" /* service coremask */
+        "C:" /* control threads */
 	"d:" /* driver */
 	"h"  /* help */
 	"l:" /* corelist */
@@ -1295,6 +1296,17 @@ eal_parse_common_option(int opt, const char *optarg,
 			return -1;
 		}
 		break;
+        	/* control threads */
+	case 'C':
+		if (eal_parse_set(optarg, set, RTE_DIM(set)) < 0) {
+			RTE_LOG(ERR, EAL, "invalid control threads\n");
+			return -1;
+		}
+		if (convert_to_cpuset(&conf->ctrl_cpuset, set, RTE_DIM(set)) < 0) {
+			RTE_LOG(ERR, EAL, "Error adding set to control cpuset\n");
+			return -1;
+		}
+		break;
 	/* service corelist */
 	case 'S':
 		if (eal_parse_service_corelist(optarg) < 0) {
@@ -1542,7 +1554,10 @@ eal_adjust_config(struct internal_config *internal_cfg)
 		lcore_config[cfg->master_lcore].core_role = ROLE_RTE;
 	}
 
-	compute_ctrl_threads_cpuset(internal_cfg);
+	if (CPU_COUNT(&internal_cfg->ctrl_cpuset) == 0) {
+		compute_ctrl_threads_cpuset(internal_cfg);
+	}
+
 
 	/* if no memory amounts were requested, this will result in 0 and
 	 * will be overridden later, right after eal_hugepage_info_init() */
@@ -1656,6 +1671,11 @@ eal_common_usage(void)
 	       "                      '( )' can be omitted for single element group,\n"
 	       "                      '@' can be omitted if cpus and lcores have the same value\n"
 	       "  -s SERVICE COREMASK Hexadecimal bitmask of cores to be used as service cores\n"
+               "  -C CONTROL THREADS  The argument format is\n"
+	       "                           (list of cpus) or Hexadecimal bitmask of cores\n"
+	       "                      Within the list of cpus, '-' is used as range seperator,\n"
+	       "                      ',' is used for single number seperator.\n"
+
 	       "  --"OPT_MASTER_LCORE" ID   Core ID that is used as master\n"
 	       "  --"OPT_MBUF_POOL_OPS_NAME" Pool ops name for mbuf to use\n"
 	       "  -n CHANNELS         Number of memory channels\n"

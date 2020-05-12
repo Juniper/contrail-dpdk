@@ -1721,6 +1721,17 @@ slave_configure(struct rte_eth_dev *bonded_eth_dev,
 	else
 		slave_eth_dev->data->dev_conf.rxmode.offloads &=
 				~DEV_RX_OFFLOAD_VLAN_FILTER;
+//sagarc
+    slave_eth_dev->data->dev_conf.rxmode.max_rx_pkt_len =
+            bonded_eth_dev->data->dev_conf.rxmode.max_rx_pkt_len;
+
+    if (bonded_eth_dev->data->dev_conf.rxmode.offloads &
+            DEV_RX_OFFLOAD_JUMBO_FRAME)
+        slave_eth_dev->data->dev_conf.rxmode.offloads |=
+                DEV_RX_OFFLOAD_JUMBO_FRAME;
+    else
+        slave_eth_dev->data->dev_conf.rxmode.offloads &=
+                ~DEV_RX_OFFLOAD_JUMBO_FRAME;
 
 	nb_rx_queues = bonded_eth_dev->data->nb_rx_queues;
 	nb_tx_queues = bonded_eth_dev->data->nb_tx_queues;
@@ -3730,6 +3741,36 @@ bond_ethdev_configure(struct rte_eth_dev *dev)
 	return 0;
 }
 
+	/* Parse/set lacp rate */
+	arg_count = rte_kvargs_count(kvlist, PMD_BOND_LACP_RATE_KVARG);
+	if (arg_count == 1) {
+		uint8_t lacp_rate;
+
+		if (rte_kvargs_process(kvlist, PMD_BOND_LACP_RATE_KVARG,
+				&bond_ethdev_parse_lacp_rate_kvarg, &lacp_rate) !=
+						0) {
+			RTE_LOG(INFO, EAL,
+					"Invalid lacp rate specified for bonded device %s\n",
+					name);
+			return -1;
+		}
+
+		/* Set balance mode transmit policy*/
+		if (rte_eth_bond_lacp_rate_set(port_id, lacp_rate)
+				!= 0) {
+			RTE_LOG(ERR, EAL,
+					"Failed to set lacp rate on bonded device %s\n", name);
+			return -1;
+		}
+	} else if (arg_count > 1) {
+		RTE_LOG(INFO, EAL,
+				"Lacp rate can be specified only once for bonded device %s\n", name);
+		return -1;
+	}
+
+	return 0;
+}
+
 struct rte_vdev_driver pmd_bond_drv = {
 	.probe = bond_probe,
 	.remove = bond_remove,
@@ -3748,7 +3789,8 @@ RTE_PMD_REGISTER_PARAM_STRING(net_bonding,
 	"mac=<mac addr> "
 	"lsc_poll_period_ms=<int> "
 	"up_delay=<int> "
-	"down_delay=<int>");
+	"down_delay=<int> "
+        "lacp_rate=[fast | slow]");
 
 int bond_logtype;
 
