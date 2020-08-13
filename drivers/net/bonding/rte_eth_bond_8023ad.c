@@ -132,6 +132,9 @@ static const struct rte_ether_addr lacp_mac_addr = {
 
 struct port bond_mode_8023ad_ports[RTE_MAX_ETHPORTS];
 
+static uint64_t lacpdu_tx_count[BOND_MODE_8023AD_MAX_SLAVES];
+static uint64_t lacpdu_rx_count[BOND_MODE_8023AD_MAX_SLAVES];
+
 static void
 timer_cancel(uint64_t *timer)
 {
@@ -629,6 +632,7 @@ tx_machine(struct bond_dev_private *internals, uint16_t slave_id)
 			set_warning_flags(port, WRN_TX_QUEUE_FULL);
 			return;
 		}
+                lacpdu_tx_count[slave_id]++;
 	} else {
 		uint16_t pkts_sent = rte_eth_tx_burst(slave_id,
 				internals->mode4.dedicated_queues.tx_qid,
@@ -638,6 +642,7 @@ tx_machine(struct bond_dev_private *internals, uint16_t slave_id)
 			set_warning_flags(port, WRN_TX_QUEUE_FULL);
 			return;
 		}
+                lacpdu_tx_count[slave_id] += pkts_sent;
 	}
 
 
@@ -896,6 +901,10 @@ bond_mode_8023ad_periodic_cb(void *arg)
 				lacp_pkt = NULL;
 
 			rx_machine_update(internals, slave_id, lacp_pkt);
+
+                        if (retval == 0) {
+                            lacpdu_rx_count[slave_id]++;
+                        }
 		} else {
 			uint16_t rx_count = rte_eth_rx_burst(slave_id,
 					internals->mode4.dedicated_queues.rx_qid,
@@ -906,6 +915,8 @@ bond_mode_8023ad_periodic_cb(void *arg)
 						slave_id, lacp_pkt);
 			else
 				rx_machine_update(internals, slave_id, NULL);
+
+                        lacpdu_rx_count[slave_id] += rx_count;
 		}
 
 		periodic_machine(internals, slave_id);
@@ -1714,4 +1725,32 @@ rte_eth_bond_8023ad_dedicated_queues_disable(uint16_t port)
 	bond_ethdev_mode_set(dev, internals->mode);
 
 	return retval;
+}
+
+uint64_t
+rte_eth_bond_8023ad_lacp_tx_count(uint16_t port_id, uint8_t clear)
+{
+    if(port_id > BOND_MODE_8023AD_MAX_SLAVES)
+        return -1;
+
+    if(clear) {
+        lacpdu_tx_count[port_id] = 0;
+        return 0;
+    }
+
+    return lacpdu_tx_count[port_id];
+}
+
+uint64_t
+rte_eth_bond_8023ad_lacp_rx_count(uint16_t port_id, uint8_t clear)
+{
+    if(port_id > BOND_MODE_8023AD_MAX_SLAVES)
+        return -1;
+
+    if(clear) {
+        lacpdu_rx_count[port_id] = 0;
+        return 0;
+    }
+
+    return lacpdu_rx_count[port_id];
 }
