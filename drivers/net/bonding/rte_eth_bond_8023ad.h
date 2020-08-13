@@ -340,4 +340,24 @@ rte_eth_bond_8023ad_agg_selection_set(uint16_t port_id,
  */
 int
 rte_eth_bond_8023ad_ext_set_fast(uint16_t port_id, uint16_t slave_id);
+
+/**
+ *  Get Lacp statistics counter for slaves
+ *  @param port_id Bonding slave device id
+ *  @param clear, reset statistics
+ *  @return
+ *    0 on success, negative value otherwise
+ */
+uint64_t
+rte_eth_bond_8023ad_lacp_tx_count(uint16_t port_id, uint8_t clear);
+
+/**
+ *  Get Lacp statistics counter for slaves
+ *  @param port_id Bonding slave device id
+ *  @param clear, reset statistics
+ *  @return
+ *    0 on success, negative value otherwise
+ */
+uint64_t
+rte_eth_bond_8023ad_lacp_rx_count(uint16_t port_id, uint8_t clear);
 #endif /* RTE_ETH_BOND_8023AD_H_ */
