@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "3293255b_6c02a912",
+        "filename": "drivers/net/bonding/rte_eth_bond_8023ad.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 28,
+      "author": {
+        "id": 643
+      },
+      "writtenOn": "2020-08-15T18:50:12Z",
+      "side": 1,
+      "message": "Ack",
+      "parentUuid": "a6636e5c_7f030332",
+      "revId": "511dbcfe0f5af3f666a5ac007186bbc991b18228",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "c82fde72_3076736e",
         "filename": "drivers/net/bonding/rte_eth_bond_8023ad.c",
         "patchSetId": 1
@@ -42,6 +60,30 @@
     },
     {
       "key": {
+        "uuid": "71d633bf_d561ba42",
+        "filename": "drivers/net/bonding/rte_eth_bond_8023ad.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 137,
+      "author": {
+        "id": 643
+      },
+      "writtenOn": "2020-08-15T18:50:12Z",
+      "side": 1,
+      "message": "yes.. its a valid syntax.. anyhow will update it..",
+      "parentUuid": "c82fde72_3076736e",
+      "range": {
+        "startLine": 137,
+        "startChar": 63,
+        "endLine": 137,
+        "endChar": 69
+      },
+      "revId": "511dbcfe0f5af3f666a5ac007186bbc991b18228",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
         "uuid": "cd7bf309_36fd7bb6",
         "filename": "drivers/net/bonding/rte_eth_bond_8023ad.c",
         "patchSetId": 1
@@ -53,6 +95,30 @@
       "writtenOn": "2020-08-13T19:48:51Z",
       "side": 1,
       "message": "Use tabs instead of spaces.. do the same for all the changes in this file..\nthis function is tx_machine(), so should the counter be lacpdu_tx_count[]?",
+      "range": {
+        "startLine": 636,
+        "startChar": 0,
+        "endLine": 636,
+        "endChar": 16
+      },
+      "revId": "511dbcfe0f5af3f666a5ac007186bbc991b18228",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "5be87a88_d01affa3",
+        "filename": "drivers/net/bonding/rte_eth_bond_8023ad.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 636,
+      "author": {
+        "id": 643
+      },
+      "writtenOn": "2020-08-15T18:50:12Z",
+      "side": 1,
+      "message": "when lacp rate as fast on dpdk(Partner) and slow on switch(Actor).. Transmit rate works in reverse way.. for each sec, DPDK RX will be incremented and DPDK TX incremented for 30 sec.\nI had this confusion so did in this way.. I will update the code",
+      "parentUuid": "cd7bf309_36fd7bb6",
       "range": {
         "startLine": 636,
         "startChar": 0,
