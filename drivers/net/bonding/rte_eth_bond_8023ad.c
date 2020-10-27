@@ -821,7 +821,6 @@ bond_mode_8023ad_periodic_cb(void *arg)
 	struct bond_dev_private *internals = bond_dev->data->dev_private;
 	struct port *port;
 	struct rte_eth_link link_info;
-	struct rte_ether_addr slave_addr;
 	struct rte_mbuf *lacp_pkt = NULL;
 	uint16_t slave_id;
 	uint16_t i;
@@ -848,7 +847,6 @@ bond_mode_8023ad_periodic_cb(void *arg)
 			key = 0;
 		}
 
-		rte_eth_macaddr_get(slave_id, &slave_addr);
 		port = &bond_mode_8023ad_ports[slave_id];
 
 		key = rte_cpu_to_be_16(key);
@@ -860,10 +858,8 @@ bond_mode_8023ad_periodic_cb(void *arg)
 			SM_FLAG_SET(port, NTT);
 		}
 
-		if (!rte_is_same_ether_addr(&port->actor.system, &slave_addr)) {
-			rte_ether_addr_copy(&slave_addr, &port->actor.system);
-			if (port->aggregator_port_id == slave_id)
-				SM_FLAG_SET(port, NTT);
+		if (port->aggregator_port_id == slave_id) {
+			SM_FLAG_SET(port, NTT);
 		}
 	}
 
@@ -1018,6 +1014,7 @@ bond_mode_8023ad_activate_slave(struct rte_eth_dev *bond_dev,
 	uint32_t total_tx_desc;
 	struct bond_tx_queue *bd_tx_q;
 	uint16_t q_id;
+	struct rte_ether_addr slave_addr;
 
 	/* Given slave mus not be in active list */
 	RTE_ASSERT(find_slave_by_id(internals->active_slaves,
@@ -1098,6 +1095,13 @@ bond_mode_8023ad_activate_slave(struct rte_eth_dev *bond_dev,
 		rte_panic("Slave %u: Failed to create tx ring '%s': %s\n", slave_id,
 			mem_name, rte_strerror(rte_errno));
 	}
+        /*If first slave being activated , use its mac as the system id for bond*/
+        if (!internals->active_slave_count) {
+		rte_eth_macaddr_get(slave_id, &slave_addr);
+		rte_ether_addr_copy(&slave_addr, &internals->mode4.system);
+        }
+        /*Use bond's system as the slave's actor system*/
+	rte_ether_addr_copy(&internals->mode4.system, &port->actor.system);
 }
 
 int
@@ -1139,7 +1143,6 @@ void
 bond_mode_8023ad_mac_address_update(struct rte_eth_dev *bond_dev)
 {
 	struct bond_dev_private *internals = bond_dev->data->dev_private;
-	struct rte_ether_addr slave_addr;
 	struct port *slave, *agg_slave;
 	uint16_t slave_id, i, j;
 
@@ -1148,12 +1151,7 @@ bond_mode_8023ad_mac_address_update(struct rte_eth_dev *bond_dev)
 	for (i = 0; i < internals->active_slave_count; i++) {
 		slave_id = internals->active_slaves[i];
 		slave = &bond_mode_8023ad_ports[slave_id];
-		rte_eth_macaddr_get(slave_id, &slave_addr);
 
-		if (rte_is_same_ether_addr(&slave_addr, &slave->actor.system))
-			continue;
-
-		rte_ether_addr_copy(&slave_addr, &slave->actor.system);
 		/* Do nothing if this port is not an aggregator. In other case
 		 * Set NTT flag on every port that use this aggregator. */
 		if (slave->aggregator_port_id != slave_id)
