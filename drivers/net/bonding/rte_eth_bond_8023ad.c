@@ -672,7 +672,7 @@ static void
 selection_logic(struct bond_dev_private *internals, uint8_t slave_id)
 {
 	struct port *agg, *port;
-	uint16_t slaves_count, new_agg_id, i, j = 0;
+	uint16_t slaves_count, new_agg_id, i, conform = 0;
 	uint16_t *slaves;
 	uint64_t agg_bandwidth[8] = {0};
 	uint64_t agg_count[8] = {0};
@@ -684,12 +684,24 @@ selection_logic(struct bond_dev_private *internals, uint8_t slave_id)
 	slaves_count = internals->active_slave_count;
 	port = &mode_8023ad_ports[slave_id];
 
+	/*
+	 * if port is selected, do nothing
+	 * Rx machine may set the variable to UNSELECTED when it detects a
+	 * change in protocol (ie Key) that materially affects the link's
+	 * membership in its current LAG
+	 */
+	if (port->selected == SELECTED ) {
+		return;
+	}
+
+	MODE4_DEBUG(" slave id=%3u aggregator id=%3u slaves count=%3u\n",
+		slave_id,
+		port->aggregator_port_id,
+		slaves_count);
+
 	/* Search for aggregator suitable for this port */
 	for (i = 0; i < slaves_count; ++i) {
 		agg = &mode_8023ad_ports[slaves[i]];
-		/* Skip ports that are not aggreagators */
-		if (agg->aggregator_port_id != slaves[i])
-			continue;
 
 		agg_count[agg->aggregator_port_id] += 1;
 		rte_eth_link_get_nowait(slaves[i], &link_info);
@@ -705,9 +717,9 @@ selection_logic(struct bond_dev_private *internals, uint8_t slave_id)
 			(agg->actor.key &
 				rte_cpu_to_be_16(BOND_LINK_FULL_DUPLEX_KEY)) != 0) {
 
-			if (j == 0)
+			if (conform == 0)
 				default_slave = i;
-			j++;
+			conform++;
 		}
 	}
 
@@ -723,12 +735,14 @@ selection_logic(struct bond_dev_private *internals, uint8_t slave_id)
 		new_agg_id = mode_band_id;
 		break;
 	case AGG_STABLE:
+		/* FIXME if condition can never be true */
 		if (default_slave == slaves_count)
 			new_agg_id = slave_id;
 		else
 			new_agg_id = slaves[default_slave];
 		break;
 	default:
+		/* FIXME if condition can never be true */
 		if (default_slave == slaves_count)
 			new_agg_id = slave_id;
 		else
@@ -745,9 +759,19 @@ selection_logic(struct bond_dev_private *internals, uint8_t slave_id)
 			port->aggregator_port_id == slave_id ?
 				"aggregator not found, using default" : "aggregator found",
 			port->aggregator_port_id);
+
+		if (port->aggregator_port_id != slave_id) {
+			port->selected = SELECTED;
+		}
+	} else {
+		if (conform == slaves_count) {
+			port->selected = SELECTED;
+		}
 	}
 
-	port->selected = SELECTED;
+	if (SM_FLAG(port, BEGIN)) {
+		port->selected = SELECTED;
+	}
 }
 
 /* Function maps DPDK speed to bonding speed stored in key field */
