@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "e40fa1eb_b2a2618c",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 4
+      },
+      "lineNbr": 7,
+      "author": {
+        "id": 1012
+      },
+      "writtenOn": "2020-12-18T13:22:14Z",
+      "side": 1,
+      "message": "I don\u0027t want to be picky, but the first line in the commit message should be a short slogan, not an entire paragraph. Something like\n\"Fix LACP split-brain during failover\"",
+      "range": {
+        "startLine": 7,
+        "startChar": 0,
+        "endLine": 7,
+        "endChar": 18
+      },
+      "revId": "bd40ac6ac3e4975b7a4eaafb01c0f16e7881a394",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    }
+  ]
+}
