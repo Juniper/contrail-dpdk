@@ -813,13 +813,20 @@ static void
 rx_machine_update(struct bond_dev_private *internals, uint8_t slave_id,
 		struct rte_mbuf *lacp_pkt) {
 	struct lacpdu_header *lacp;
+	struct lacpdu_actor_partner_params *partner;
 
 	if (lacp_pkt != NULL) {
 		lacp = rte_pktmbuf_mtod(lacp_pkt, struct lacpdu_header *);
 		RTE_ASSERT(lacp->lacpdu.subtype == SLOW_SUBTYPE_LACP);
 
-		/* This is LACP frame so pass it to rx_machine */
-		rx_machine(internals, slave_id, &lacp->lacpdu);
+		partner = &lacp->lacpdu.partner;
+		if (is_same_ether_addr(&partner->port_params.system,
+			&internals->mode4.mac_addr)) {
+			/* This LACP frame is sending to the bonding port
+			 * so pass it to rx_machine.
+			 */
+			rx_machine(internals, slave_id, &lacp->lacpdu);
+		}
 		rte_pktmbuf_free(lacp_pkt);
 	} else
 		rx_machine(internals, slave_id, NULL);
@@ -832,7 +839,6 @@ bond_mode_8023ad_periodic_cb(void *arg)
 	struct bond_dev_private *internals = bond_dev->data->dev_private;
 	struct port *port;
 	struct rte_eth_link link_info;
-	struct ether_addr slave_addr;
 	struct rte_mbuf *lacp_pkt = NULL;
 
 	uint8_t i, slave_id;
@@ -844,7 +850,6 @@ bond_mode_8023ad_periodic_cb(void *arg)
 
 		slave_id = internals->active_slaves[i];
 		rte_eth_link_get_nowait(slave_id, &link_info);
-		rte_eth_macaddr_get(slave_id, &slave_addr);
 
 		if (link_info.link_status != 0) {
 			key = link_speed_key(link_info.link_speed) << 1;
@@ -864,8 +869,8 @@ bond_mode_8023ad_periodic_cb(void *arg)
 			SM_FLAG_SET(port, NTT);
 		}
 
-		if (!is_same_ether_addr(&port->actor.system, &slave_addr)) {
-			ether_addr_copy(&slave_addr, &port->actor.system);
+		if (!is_same_ether_addr(&internals->mode4.mac_addr, &port->actor.system)) {
+			ether_addr_copy(&internals->mode4.mac_addr, &port->actor.system);
 			if (port->aggregator_port_id == slave_id)
 				SM_FLAG_SET(port, NTT);
 		}
@@ -1070,21 +1075,20 @@ void
 bond_mode_8023ad_mac_address_update(struct rte_eth_dev *bond_dev)
 {
 	struct bond_dev_private *internals = bond_dev->data->dev_private;
-	struct ether_addr slave_addr;
 	struct port *slave, *agg_slave;
 	uint16_t slave_id, i, j;
 
 	bond_mode_8023ad_stop(bond_dev);
+	rte_eth_macaddr_get(internals->port_id, &internals->mode4.mac_addr);
 
 	for (i = 0; i < internals->active_slave_count; i++) {
 		slave_id = internals->active_slaves[i];
 		slave = &mode_8023ad_ports[slave_id];
-		rte_eth_macaddr_get(slave_id, &slave_addr);
-
-		if (is_same_ether_addr(&slave_addr, &slave->actor.system))
+		if (is_same_ether_addr(&internals->mode4.mac_addr, &slave->actor.system))
 			continue;
 
-		ether_addr_copy(&slave_addr, &slave->actor.system);
+
+		ether_addr_copy(&internals->mode4.mac_addr, &slave->actor.system);
 		/* Do nothing if this port is not an aggregator. In other case
 		 * Set NTT flag on every port that use this aggregator. */
 		if (slave->aggregator_port_id != slave_id)
