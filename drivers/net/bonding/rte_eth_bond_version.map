@@ -43,3 +43,13 @@ DPDK_16.07 {
 	rte_eth_bond_8023ad_setup;
 
 } DPDK_16.04;
+
+DPDK_17.08 {
+       global:
+
+       rte_eth_bond_8023ad_agg_selection_get;
+       rte_eth_bond_8023ad_agg_selection_set;
+       rte_eth_bond_8023ad_conf_get;
+       rte_eth_bond_8023ad_setup;
+
+} DPDK_16.07;
