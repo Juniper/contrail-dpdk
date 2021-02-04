@@ -116,6 +116,9 @@ extern "C" {
 /**< Layer 2+3 (Ethernet MAC + IP Addresses) transmit load balancing */
 #define BALANCE_XMIT_POLICY_LAYER34		(2)
 /**< Layer 3+4 (IP Addresses + UDP Ports) transmit load balancing */
+/* LACP Rate */
+#define LACP_RATE_SLOW  (0)
+#define LACP_RATE_FAST  (1)
 
 /**
  * Create a bonded rte_eth_dev device
@@ -369,6 +372,28 @@ rte_eth_bond_link_up_prop_delay_set(uint8_t bonded_port_id, uint32_t delay_ms);
 int
 rte_eth_bond_link_up_prop_delay_get(uint8_t bonded_port_id);
 
+/**
+ * Set the lacp rate for the slave interface
+ *
+ * @param bonded_port_id    Port ID of bonded device.
+ * @param lacp_rate     0 - slow, 1 - fast
+ *
+ * @return
+ *  0 on success, negative value otherwise.
+ */
+int
+rte_eth_bond_lacp_rate_set(uint16_t bonded_port_id, uint8_t lacp_rate);
+
+/**
+ * Get the lacp rate for the slave device
+ *
+ * @param bonded_port_id    Port ID of bonded device.
+ *
+ * @return
+ *  lacp rate on success, negative value otherwise.
+ */
+int
+rte_eth_bond_lacp_rate_get(uint16_t bonded_port_id);
 
 #ifdef __cplusplus
 }

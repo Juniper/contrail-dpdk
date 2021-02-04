@@ -2350,7 +2350,7 @@ bond_ethdev_configure(struct rte_eth_dev *dev)
 	struct bond_dev_private *internals = dev->data->dev_private;
 	struct rte_kvargs *kvlist = internals->kvlist;
 	int arg_count;
-	uint8_t port_id = dev - rte_eth_devices;
+	uint8_t port_id = dev - rte_eth_devices, agg_mode;
 
 	static const uint8_t default_rss_key[40] = {
 		0x6D, 0x5A, 0x56, 0xDA, 0x25, 0x5B, 0x0E, 0xC2, 0x41, 0x67, 0x25, 0x3D,
@@ -2436,6 +2436,17 @@ bond_ethdev_configure(struct rte_eth_dev *dev)
 				"Transmit policy can be specified only once for bonded device"
 				" %s\n", name);
 		return -1;
+	}
+	if (rte_kvargs_count(kvlist, PMD_BOND_AGG_MODE_KVARG) == 1) {
+		if (rte_kvargs_process(kvlist, PMD_BOND_AGG_MODE_KVARG,
+			&bond_ethdev_parse_slave_agg_mode_kvarg,
+				&agg_mode) != 0) {
+
+		}
+
+		if (internals->mode == BONDING_MODE_8023AD)
+			if (agg_mode != 0)
+				rte_eth_bond_8023ad_agg_selection_set(port_id, agg_mode);
 	}
 
 	/* Parse/add slave ports to bonded device */
@@ -2584,6 +2595,32 @@ bond_ethdev_configure(struct rte_eth_dev *dev)
 				" bonded device %s\n", name);
 		return -1;
 	}
+	/* Parse/set lacp rate */
+	arg_count = rte_kvargs_count(kvlist, PMD_BOND_LACP_RATE_KVARG);
+	if (arg_count == 1) {
+		uint8_t lacp_rate;
+
+		if (rte_kvargs_process(kvlist, PMD_BOND_LACP_RATE_KVARG,
+			&bond_ethdev_parse_lacp_rate_kvarg, &lacp_rate) !=
+			0) {
+				RTE_LOG(INFO, EAL,
+					"Invalid lacp rate specified for bonded device %s\n",
+					name);
+				return -1;
+			}
+
+		/* Set balance mode transmit policy*/
+		if (rte_eth_bond_lacp_rate_set(port_id, lacp_rate)
+			!= 0) {
+			RTE_LOG(ERR, EAL,
+				"Failed to set lacp rate on bonded device %s\n", name);
+			return -1;
+		}
+	} else if (arg_count > 1) {
+		RTE_LOG(INFO, EAL,
+			"Lacp rate can be specified only once for bonded device %s\n", name);
+		return -1;
+	}
 
 	return 0;
 }
@@ -2601,8 +2638,10 @@ RTE_PMD_REGISTER_PARAM_STRING(net_bonding,
 	"primary=<ifc> "
 	"mode=[0-6] "
 	"xmit_policy=[l2 | l23 | l34] "
+	"agg_mode=[count | stable | bandwidth] "
 	"socket_id=<int> "
 	"mac=<mac addr> "
 	"lsc_poll_period_ms=<int> "
 	"up_delay=<int> "
-	"down_delay=<int>");
+	"down_delay=<int>"
+	"lacp_rate=[fast | slow]");

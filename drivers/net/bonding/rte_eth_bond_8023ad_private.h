@@ -47,6 +47,10 @@
 #define BOND_MODE_8023AX_SLAVE_RX_PKTS        3
 /** Maximum number of LACP packets from one slave queued in TX ring. */
 #define BOND_MODE_8023AX_SLAVE_TX_PKTS        1
+/** maximum number of slaves for each port */
+#define BOND_MODE_8023AD_MAX_SLAVES           6
+
+
 /**
  * Timeouts deffinitions (5.4.4 in 802.1AX documentation).
  */
@@ -175,6 +179,7 @@ struct mode8023ad_private {
 	uint64_t update_timeout_us;
 	rte_eth_bond_8023ad_ext_slowrx_fn slowrx_cb;
 	uint8_t external_sm;
+	enum rte_bond_8023ad_agg_selection agg_selection;
 };
 
 /**

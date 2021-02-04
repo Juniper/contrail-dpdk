@@ -73,6 +73,12 @@ enum rte_bond_8023ad_selection {
 	SELECTED
 };
 
+enum rte_bond_8023ad_agg_selection {
+       AGG_BANDWIDTH,
+       AGG_COUNT,
+       AGG_STABLE
+};
+
 /** Generic slow protocol structure */
 struct slow_protocol {
 	uint8_t subtype;
@@ -161,6 +167,7 @@ struct rte_eth_bond_8023ad_conf {
 	uint32_t rx_marker_period_ms;
 	uint32_t update_timeout_ms;
 	rte_eth_bond_8023ad_ext_slowrx_fn slowrx_cb;
+	enum rte_bond_8023ad_agg_selection agg_selection;
 };
 
 struct rte_eth_bond_8023ad_slave_info {
@@ -214,6 +221,7 @@ rte_eth_bond_8023ad_setup_v20(uint8_t port_id,
 int
 rte_eth_bond_8023ad_setup_v1607(uint8_t port_id,
 		struct rte_eth_bond_8023ad_conf *conf);
+
 
 /**
  * @internal
@@ -301,5 +309,52 @@ rte_eth_bond_8023ad_ext_distrib_get(uint8_t port_id, uint8_t slave_id);
 int
 rte_eth_bond_8023ad_ext_slowtx(uint8_t port_id, uint8_t slave_id,
 		struct rte_mbuf *lacp_pkt);
+/**
+ * Get aggregator mode for 8023ad
+ * @param port_id Bonding device id
+ *
+ * @return
+ *   agregator mode on success, negative value otherwise
+ */
+int
+rte_eth_bond_8023ad_agg_selection_get(uint8_t port_id);
 
+/**
+ * Set aggregator mode for 8023ad
+ * @param port_id Bonding device id
+ * @return
+ *     0 on success, negative value otherwise
+ */
+int
+rte_eth_bond_8023ad_agg_selection_set(uint8_t port_id,
+               enum rte_bond_8023ad_agg_selection agg_selection);
+
+/**
+ *  Get Lacp statistics counter for slaves
+ *  @param port_id Bonding slave device id
+ *  @param clear, reset statistics
+ *  @return
+ *    0 on success, negative value otherwise
+ */
+uint64_t
+rte_eth_bond_8023ad_lacp_tx_count(uint16_t port_id, uint8_t clear);
+
+/**
+ *  Get Lacp statistics counter for slaves
+ *  @param port_id Bonding slave device id
+ *  @param clear, reset statistics
+ *  @return
+ *    0 on success, negative value otherwise
+ */
+uint64_t
+rte_eth_bond_8023ad_lacp_rx_count(uint16_t port_id, uint8_t clear);
+
+/**
+ * Set slave to use fast lacp timeout
+ * @param port_id Bonding device id
+ * @return
+ *   0 on success, negative value otherwise
+ */
+int
+rte_eth_bond_8023ad_ext_set_fast(uint16_t port_id, uint16_t slave_id);
 #endif /* RTE_ETH_BOND_8023AD_H_ */
