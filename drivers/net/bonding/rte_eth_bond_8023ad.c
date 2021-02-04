@@ -512,6 +512,10 @@ mux_machine(struct bond_dev_private *internals, uint8_t slave_id)
 		ACTOR_STATE_CLR(port, SYNCHRONIZATION);
 		MODE4_DEBUG("Out of sync -> ATTACHED\n");
 	}
+	if (internals->lacp_rate)
+		ACTOR_STATE_SET(port, LACP_SHORT_TIMEOUT);
+       	else
+		ACTOR_STATE_CLR(port, LACP_SHORT_TIMEOUT);
 
 	if (!ACTOR_STATE(port, SYNCHRONIZATION)) {
 		/* attach mux to aggregator */
@@ -659,6 +663,9 @@ selection_logic(struct bond_dev_private *internals, uint8_t slave_id)
 	struct port *agg, *port;
 	uint8_t slaves_count, new_agg_id, i;
 	uint8_t *slaves;
+	uint64_t agg_bandwidth[8] = {0};
+        uint64_t agg_count[8] = {0};
+        struct rte_eth_link link_info;
 
 	slaves = internals->active_slaves;
 	slaves_count = internals->active_slave_count;
@@ -670,7 +677,9 @@ selection_logic(struct bond_dev_private *internals, uint8_t slave_id)
 		/* Skip ports that are not aggreagators */
 		if (agg->aggregator_port_id != slaves[i])
 			continue;
-
+		agg_count[agg->aggregator_port_id] += 1;
+                rte_eth_link_get_nowait(slaves[i], &link_info);
+                agg_bandwidth[agg->aggregator_port_id] += link_info.link_speed;
 		/* Actors system ID is not checked since all slave device have the same
 		 * ID (MAC address). */
 		if ((agg->actor.key == port->actor.key &&
@@ -1251,10 +1260,52 @@ rte_eth_bond_8023ad_conf_get_v1607(uint8_t port_id,
 	bond_mode_8023ad_conf_get_v1607(bond_dev, conf);
 	return 0;
 }
-BIND_DEFAULT_SYMBOL(rte_eth_bond_8023ad_conf_get, _v1607, 16.07);
+
+VERSION_SYMBOL(rte_eth_bond_8023ad_conf_get, _v1607, 16.07);
+
 MAP_STATIC_SYMBOL(int rte_eth_bond_8023ad_conf_get(uint8_t port_id,
 		struct rte_eth_bond_8023ad_conf *conf),
 		rte_eth_bond_8023ad_conf_get_v1607);
+int
+rte_eth_bond_8023ad_agg_selection_set(uint8_t port_id,
+               enum rte_bond_8023ad_agg_selection agg_selection) {
+       struct rte_eth_dev *bond_dev;
+       struct bond_dev_private *internals;
+       struct mode8023ad_private *mode4;
+
+       bond_dev = &rte_eth_devices[port_id];
+       internals = bond_dev->data->dev_private;
+
+       if (valid_bonded_port_id(port_id) != 0)
+               return -EINVAL;
+       if (internals->mode != 4)
+               return -EINVAL;
+
+       mode4 = &internals->mode4;
+       if (agg_selection == AGG_COUNT || agg_selection == AGG_BANDWIDTH
+                       || agg_selection == AGG_STABLE)
+               mode4->agg_selection = agg_selection;
+       return 0;
+}
+
+int rte_eth_bond_8023ad_agg_selection_get(uint8_t port_id)
+{
+       struct rte_eth_dev *bond_dev;
+       struct bond_dev_private *internals;
+       struct mode8023ad_private *mode4;
+
+       bond_dev = &rte_eth_devices[port_id];
+       internals = bond_dev->data->dev_private;
+
+       if (valid_bonded_port_id(port_id) != 0)
+               return -EINVAL;
+       if (internals->mode != 4)
+               return -EINVAL;
+       mode4 = &internals->mode4;
+
+       return mode4->agg_selection;
+}
+
 
 static int
 bond_8023ad_setup_validate(uint8_t port_id,

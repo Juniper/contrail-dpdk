@@ -52,6 +52,11 @@
 #define PMD_BOND_LINK_UP_PROP_DELAY_KVARG	("up_delay")
 #define PMD_BOND_LINK_DOWN_PROP_DELAY_KVARG	("down_delay")
 
+#define PMD_BOND_LACP_RATE_KVARG               ("lacp_rate")
+#define PMD_BOND_AGG_MODE_KVARG                ("agg_mode")
+#define PMD_BOND_LACP_RATE_FAST_KVARG          ("fast")
+#define PMD_BOND_LACP_RATE_SLOW_KVARG          ("slow")
+
 #define PMD_BOND_XMIT_POLICY_LAYER2_KVARG	("l2")
 #define PMD_BOND_XMIT_POLICY_LAYER23_KVARG	("l23")
 #define PMD_BOND_XMIT_POLICY_LAYER34_KVARG	("l34")
@@ -178,6 +183,7 @@ struct bond_dev_private {
 
 	void *vlan_filter_bmpmem;		/* enabled vlan filter bitmap */
 	struct rte_bitmap *vlan_filter_bmp;
+	uint8_t lacp_rate;
 };
 
 extern const struct eth_dev_ops default_dev_ops;
@@ -277,6 +283,10 @@ bond_ethdev_parse_slave_mode_kvarg(const char *key __rte_unused,
 		const char *value, void *extra_args);
 
 int
+bond_ethdev_parse_slave_agg_mode_kvarg(const char *key __rte_unused,
+               const char *value, void *extra_args);
+
+int
 bond_ethdev_parse_socket_id_kvarg(const char *key __rte_unused,
 		const char *value, void *extra_args);
 
@@ -295,6 +305,9 @@ bond_ethdev_parse_bond_mac_addr_kvarg(const char *key __rte_unused,
 int
 bond_ethdev_parse_time_ms_kvarg(const char *key __rte_unused,
 		const char *value, void *extra_args);
+int
+bond_ethdev_parse_lacp_rate_kvarg(const char *key,
+               const char *value, void *extra_args);
 
 void
 bond_tlb_disable(struct bond_dev_private *internals);
