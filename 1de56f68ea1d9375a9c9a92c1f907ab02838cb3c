@@ -16,6 +16,24 @@
       "revId": "1de56f68ea1d9375a9c9a92c1f907ab02838cb3c",
       "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "01e79bf1_af6c30a8",
+        "filename": "drivers/net/bonding/rte_eth_bond_8023ad.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1370,
+      "author": {
+        "id": 988
+      },
+      "writtenOn": "2021-02-17T10:43:20Z",
+      "side": 1,
+      "message": "Attended",
+      "parentUuid": "209b72eb_65069c2e",
+      "revId": "1de56f68ea1d9375a9c9a92c1f907ab02838cb3c",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": false
     }
   ]
 }
