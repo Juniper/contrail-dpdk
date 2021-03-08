@@ -68,6 +68,7 @@
 #include "rte_ether.h"
 #include "rte_ethdev.h"
 
+int rte_eth_dev_logtype;
 static const char *MZ_RTE_ETH_DEV_DATA = "rte_eth_dev_data";
 struct rte_eth_dev rte_eth_devices[RTE_MAX_ETHPORTS];
 static struct rte_eth_dev_data *rte_eth_dev_data;
@@ -142,6 +143,111 @@ enum {
 	DEV_DETACHED = 0,
 	DEV_ATTACHED
 };
+
+static inline int
+get_xstats_basic_count(struct rte_eth_dev *dev)
+{
+        uint16_t nb_rxqs, nb_txqs;
+        int count;
+
+        nb_rxqs = RTE_MIN(dev->data->nb_rx_queues, RTE_ETHDEV_QUEUE_STAT_CNTRS);
+        nb_txqs = RTE_MIN(dev->data->nb_tx_queues, RTE_ETHDEV_QUEUE_STAT_CNTRS);
+
+        count = RTE_NB_STATS;
+        count += nb_rxqs * RTE_NB_RXQ_STATS;
+        count += nb_txqs * RTE_NB_TXQ_STATS;
+
+        return count;
+}
+
+static int
+rte_eth_basic_stats_get(uint16_t port_id, struct rte_eth_xstat *xstats)
+{
+        struct rte_eth_dev *dev;
+        struct rte_eth_stats eth_stats;
+        unsigned int count = 0, i, q;
+        uint64_t val, *stats_ptr;
+        uint16_t nb_rxqs, nb_txqs;
+        int ret;
+
+        ret = rte_eth_stats_get(port_id, &eth_stats);
+        if (ret < 0)
+                return ret;
+
+        dev = &rte_eth_devices[port_id];
+
+        nb_rxqs = RTE_MIN(dev->data->nb_rx_queues, RTE_ETHDEV_QUEUE_STAT_CNTRS);
+        nb_txqs = RTE_MIN(dev->data->nb_tx_queues, RTE_ETHDEV_QUEUE_STAT_CNTRS);
+
+        /* global stats */
+        for (i = 0; i < RTE_NB_STATS; i++) {
+                stats_ptr = RTE_PTR_ADD(&eth_stats,
+                                        rte_stats_strings[i].offset);
+                val = *stats_ptr;
+                xstats[count++].value = val;
+        }
+
+        /* per-rxq stats */
+        for (q = 0; q < nb_rxqs; q++) {
+                for (i = 0; i < RTE_NB_RXQ_STATS; i++) {
+                        stats_ptr = RTE_PTR_ADD(&eth_stats,
+                                        rte_rxq_stats_strings[i].offset +
+                                        q * sizeof(uint64_t));
+                        val = *stats_ptr;
+                        xstats[count++].value = val;
+                }
+        }
+
+        /* per-txq stats */
+        for (q = 0; q < nb_txqs; q++) {
+                for (i = 0; i < RTE_NB_TXQ_STATS; i++) {
+                        stats_ptr = RTE_PTR_ADD(&eth_stats,
+                                        rte_txq_stats_strings[i].offset +
+                                        q * sizeof(uint64_t));
+                        val = *stats_ptr;
+                        xstats[count++].value = val;
+                }
+        }
+        return count;
+}
+
+/* retrieve basic stats names */
+static int
+rte_eth_basic_stats_get_names(struct rte_eth_dev *dev,
+        struct rte_eth_xstat_name *xstats_names)
+{
+        int cnt_used_entries = 0;
+        uint32_t idx, id_queue;
+        uint16_t num_q;
+
+        for (idx = 0; idx < RTE_NB_STATS; idx++) {
+                strlcpy(xstats_names[cnt_used_entries].name,
+                        rte_stats_strings[idx].name,
+                        sizeof(xstats_names[0].name));
+                cnt_used_entries++;
+        }
+        num_q = RTE_MIN(dev->data->nb_rx_queues, RTE_ETHDEV_QUEUE_STAT_CNTRS);
+        for (id_queue = 0; id_queue < num_q; id_queue++) {
+                for (idx = 0; idx < RTE_NB_RXQ_STATS; idx++) {
+                        snprintf(xstats_names[cnt_used_entries].name,
+                                sizeof(xstats_names[0].name),
+                                "rx_q%u%s",
+                                id_queue, rte_rxq_stats_strings[idx].name);
+                        cnt_used_entries++;
+                }
+        }
+        num_q = RTE_MIN(dev->data->nb_tx_queues, RTE_ETHDEV_QUEUE_STAT_CNTRS);
+        for (id_queue = 0; id_queue < num_q; id_queue++) {
+                for (idx = 0; idx < RTE_NB_TXQ_STATS; idx++) {
+                        snprintf(xstats_names[cnt_used_entries].name,
+                                sizeof(xstats_names[0].name),
+                                "tx_q%u%s",
+                                id_queue, rte_txq_stats_strings[idx].name);
+                        cnt_used_entries++;
+                }
+        }
+        return cnt_used_entries;
+}
 
 static void
 rte_eth_dev_data_alloc(void)
@@ -3272,4 +3378,205 @@ rte_eth_dev_l2_tunnel_offload_set(uint8_t port_id,
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->l2_tunnel_offload_set,
 				-ENOTSUP);
 	return (*dev->dev_ops->l2_tunnel_offload_set)(dev, l2_tunnel, mask, en);
+}
+
+/* retrieve ethdev extended statistics names */
+int
+rte_eth_xstats_get_names_by_id(uint16_t port_id,
+       struct rte_eth_xstat_name *xstats_names, unsigned int size,
+       uint64_t *ids)
+{
+       struct rte_eth_xstat_name *xstats_names_copy;
+       unsigned int no_basic_stat_requested = 1;
+       unsigned int no_ext_stat_requested = 1;
+       unsigned int expected_entries;
+       unsigned int basic_count;
+       struct rte_eth_dev *dev;
+       unsigned int i;
+       int ret;
+
+       RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
+       dev = &rte_eth_devices[port_id];
+
+       basic_count = get_xstats_basic_count(dev);
+       ret = get_xstats_count(port_id);
+       if (ret < 0)
+               return ret;
+       expected_entries = (unsigned int)ret;
+
+       /* Return max number of stats if no ids given */
+       if (!ids) {
+               if (!xstats_names)
+                       return expected_entries;
+               else if (xstats_names && size < expected_entries)
+                       return expected_entries;
+       }
+       if (ids && !xstats_names)
+               return -EINVAL;
+
+       if (ids && dev->dev_ops->xstats_get_names_by_id != NULL && size > 0) {
+               uint64_t ids_copy[size];
+
+               for (i = 0; i < size; i++) {
+                       if (ids[i] < basic_count) {
+                               no_basic_stat_requested = 0;
+                               break;
+                       }
+
+                       /*
+                        * Convert ids to xstats ids that PMD knows.
+                        * ids known by user are basic + extended stats.
+                        */
+                       ids_copy[i] = ids[i] - basic_count;
+               }
+
+               if (no_basic_stat_requested)
+                       return (*dev->dev_ops->xstats_get_names_by_id)(dev,
+                                       xstats_names, ids_copy, size);
+       }
+
+       /* Retrieve all stats */
+       if (!ids) {
+               int num_stats = rte_eth_xstats_get_names(port_id, xstats_names,
+                               expected_entries);
+               if (num_stats < 0 || num_stats > (int)expected_entries)
+                       return num_stats;
+               else
+                       return expected_entries;
+       }
+
+       xstats_names_copy = calloc(expected_entries,
+               sizeof(struct rte_eth_xstat_name));
+
+       if (!xstats_names_copy) {
+               RTE_ETHDEV_LOG(ERR, "Can't allocate memory\n");
+               return -ENOMEM;
+       }
+
+       if (ids) {
+               for (i = 0; i < size; i++) {
+                       if (ids[i] >= basic_count) {
+                               no_ext_stat_requested = 0;
+                               break;
+                       }
+               }
+       }
+
+       /* Fill xstats_names_copy structure */
+       if (ids && no_ext_stat_requested) {
+               rte_eth_basic_stats_get_names(dev, xstats_names_copy);
+       } else {
+               ret = rte_eth_xstats_get_names(port_id, xstats_names_copy,
+                       expected_entries);
+               if (ret < 0) {
+                       free(xstats_names_copy);
+                       return ret;
+               }
+       }
+
+       /* Filter stats */
+       for (i = 0; i < size; i++) {
+               if (ids[i] >= expected_entries) {
+                       RTE_ETHDEV_LOG(ERR, "Id value isn't valid\n");
+                       free(xstats_names_copy);
+                       return -1;
+               }
+               xstats_names[i] = xstats_names_copy[ids[i]];
+       }
+
+       free(xstats_names_copy);
+       return size;
+}
+
+/* retrieve ethdev extended statistics */
+int
+rte_eth_xstats_get_by_id(uint16_t port_id, const uint64_t *ids,
+                        uint64_t *values, unsigned int size)
+{
+       unsigned int no_basic_stat_requested = 1;
+       unsigned int no_ext_stat_requested = 1;
+       unsigned int num_xstats_filled;
+       unsigned int basic_count;
+       uint16_t expected_entries;
+       struct rte_eth_dev *dev;
+       unsigned int i;
+       int ret;
+
+       RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
+       ret = get_xstats_count(port_id);
+       if (ret < 0)
+               return ret;
+       expected_entries = (uint16_t)ret;
+       struct rte_eth_xstat xstats[expected_entries];
+       dev = &rte_eth_devices[port_id];
+       basic_count = get_xstats_basic_count(dev);
+
+       /* Return max number of stats if no ids given */
+       if (!ids) {
+               if (!values)
+                       return expected_entries;
+               else if (values && size < expected_entries)
+                       return expected_entries;
+       }
+
+       if (ids && !values)
+               return -EINVAL;
+
+       if (ids && dev->dev_ops->xstats_get_by_id != NULL && size) {
+               unsigned int basic_count = get_xstats_basic_count(dev);
+               uint64_t ids_copy[size];
+
+               for (i = 0; i < size; i++) {
+                       if (ids[i] < basic_count) {
+                               no_basic_stat_requested = 0;
+                               break;
+                       }
+
+                       /*
+                        * Convert ids to xstats ids that PMD knows.
+                        * ids known by user are basic + extended stats.
+                        */
+                       ids_copy[i] = ids[i] - basic_count;
+               }
+
+               if (no_basic_stat_requested)
+                       return (*dev->dev_ops->xstats_get_by_id)(dev, ids_copy,
+                                       values, size);
+       }
+
+       if (ids) {
+               for (i = 0; i < size; i++) {
+                       if (ids[i] >= basic_count) {
+                               no_ext_stat_requested = 0;
+                               break;
+                       }
+               }
+       }
+
+       /* Fill the xstats structure */
+       if (ids && no_ext_stat_requested)
+               ret = rte_eth_basic_stats_get(port_id, xstats);
+       else
+               ret = rte_eth_xstats_get(port_id, xstats, expected_entries);
+
+       if (ret < 0)
+               return ret;
+       num_xstats_filled = (unsigned int)ret;
+
+       /* Return all stats */
+       if (!ids) {
+               for (i = 0; i < num_xstats_filled; i++)
+                       values[i] = xstats[i].value;
+               return expected_entries;
+       }
+
+       /* Filter stats */
+       for (i = 0; i < size; i++) {
+               if (ids[i] >= expected_entries) {
+                       RTE_ETHDEV_LOG(ERR, "Id value isn't valid\n");
+                       return -1;
+               }
+               values[i] = xstats[ids[i]].value;
+       }
+       return size;
 }
