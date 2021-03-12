@@ -1141,7 +1141,7 @@ i40e_support_multi_driver(struct rte_eth_dev *dev)
 	int kvargs_count;
 
 	/* Enable global configuration by default */
-	pf->support_multi_driver = true;
+	pf->support_multi_driver = false;
 
 	if (!dev->device->devargs)
 		return 0;
