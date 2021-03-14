@@ -44,6 +44,9 @@
 #include "rte_eth_bond_private.h"
 
 static void bond_mode_8023ad_ext_periodic_cb(void *arg);
+static uint64_t lacpdu_tx_count[BOND_MODE_8023AD_MAX_SLAVES];
+static uint64_t lacpdu_rx_count[BOND_MODE_8023AD_MAX_SLAVES];
+
 
 #ifdef RTE_LIBRTE_BOND_DEBUG_8023AD
 #define MODE4_DEBUG(fmt, ...) RTE_LOG(DEBUG, PMD, "%6u [Port %u: %s] " fmt, \
@@ -1560,3 +1563,32 @@ bond_mode_8023ad_ext_periodic_cb(void *arg)
 	rte_eal_alarm_set(internals->mode4.update_timeout_us,
 			bond_mode_8023ad_ext_periodic_cb, arg);
 }
+
+uint64_t
+rte_eth_bond_8023ad_lacp_tx_count(uint16_t port_id, uint8_t clear)
+{
+    if(port_id > BOND_MODE_8023AD_MAX_SLAVES)
+        return -1;
+
+    if(clear) {
+        lacpdu_tx_count[port_id] = 0;
+        return 0;
+    }
+
+    return lacpdu_tx_count[port_id];
+}
+
+uint64_t
+rte_eth_bond_8023ad_lacp_rx_count(uint16_t port_id, uint8_t clear)
+{
+    if(port_id > BOND_MODE_8023AD_MAX_SLAVES)
+        return -1;
+
+    if(clear) {
+        lacpdu_rx_count[port_id] = 0;
+        return 0;
+    }
+
+    return lacpdu_rx_count[port_id];
+}
+
