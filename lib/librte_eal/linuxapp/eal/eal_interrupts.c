@@ -34,6 +34,7 @@
 #include <rte_errno.h>
 #include <rte_spinlock.h>
 #include <rte_pause.h>
+#include <rte_cycles.h>
 
 #include "eal_private.h"
 #include "eal_vfio.h"
@@ -96,6 +97,11 @@ static struct rte_intr_source_list intr_sources;
 
 /* interrupt handling thread */
 static pthread_t intr_thread;
+
+/* variable to store eal interrupt function call histogram */
+static uint64_t eal_interrupts_call_counts[6] = {0};
+
+void rte_eal_interrupts_call_histogram(uint64_t, uint64_t);
 
 /* VFIO interrupts */
 #ifdef VFIO_PRESENT
@@ -623,6 +629,45 @@ rte_intr_disable(const struct rte_intr_handle *intr_handle)
 	return 0;
 }
 
+void
+rte_eal_interrupts_call_histogram(uint64_t prev, uint64_t cur) {
+    uint64_t diff;
+
+    if (prev == 0)
+        prev = cur;
+
+    diff = ((cur - prev) * 1000) / rte_get_tsc_hz();
+
+    if (diff>= RTE_EAL_INTERRUPT_CALL_TIME_150) {
+        RTE_LOG(ERR, EAL,
+			"Warning: EAL interrupt function called after %"PRId64"ms\n", diff);
+    }
+
+    if (diff >= RTE_EAL_INTERRUPT_CALL_TIME_500)
+        eal_interrupts_call_counts[0]++;
+    else if (diff >= RTE_EAL_INTERRUPT_CALL_TIME_400)
+        eal_interrupts_call_counts[1]++;
+    else if (diff >= RTE_EAL_INTERRUPT_CALL_TIME_300)
+        eal_interrupts_call_counts[2]++;
+    else if (diff >= RTE_EAL_INTERRUPT_CALL_TIME_150)
+        eal_interrupts_call_counts[3]++;
+    else if (diff > RTE_EAL_INTERRUPT_CALL_TIME_100)
+        eal_interrupts_call_counts[4]++;
+    else
+        eal_interrupts_call_counts[5]++;
+}
+
+uint64_t*
+rte_eal_interrupts_call_count_fetch(uint8_t clear)
+{
+    if (clear) {
+        memset(eal_interrupts_call_counts, 0,
+		RTE_EAL_HISTOGRAM_MAX_RANGE*sizeof(uint64_t));
+    }
+
+    return eal_interrupts_call_counts;
+}
+
 static int
 eal_intr_process_interrupts(struct epoll_event *events, int nfds)
 {
@@ -632,6 +677,10 @@ eal_intr_process_interrupts(struct epoll_event *events, int nfds)
 	struct rte_intr_callback *cb;
 	union rte_intr_read_buffer buf;
 	struct rte_intr_callback active_cb;
+	uint64_t start_timer, end_timer, diff, cur_timer = rte_rdtsc();
+	static uint64_t prev_eal_intr_call_timer = 0;
+
+	rte_eal_interrupts_call_histogram(prev_eal_intr_call_timer, cur_timer);
 
 	for (n = 0; n < nfds; n++) {
 
@@ -723,7 +772,16 @@ eal_intr_process_interrupts(struct epoll_event *events, int nfds)
 				rte_spinlock_unlock(&intr_lock);
 
 				/* call the actual callback */
+				start_timer = rte_rdtsc();
 				active_cb.cb_fn(active_cb.cb_arg);
+				end_timer = rte_rdtsc();
+				diff = ((end_timer - start_timer) * 1000) / rte_get_tsc_hz();
+				if (diff > 150) {
+					RTE_LOG(ERR, EAL,
+					"Warning: eal_intr_process_interrupts diff:%"PRId64"ms,"
+					" fd:%d, type:%u, cb_fn:%p\n", diff, src->intr_handle.fd,
+					src->intr_handle.type, active_cb.cb_fn);
+				}
 
 				/*get the lock back. */
 				rte_spinlock_lock(&intr_lock);
@@ -734,6 +792,7 @@ eal_intr_process_interrupts(struct epoll_event *events, int nfds)
 		src->active = 0;
 		rte_spinlock_unlock(&intr_lock);
 	}
+	prev_eal_intr_call_timer = rte_rdtsc();
 
 	return 0;
 }
