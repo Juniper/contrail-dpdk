@@ -84,6 +84,16 @@ struct rte_intr_handle {
 
 #define RTE_EPOLL_PER_THREAD        -1  /**< to hint using per thread epfd */
 
+/** EAL interrupts histogram constants. */
+#define RTE_EAL_HISTOGRAM_MAX_RANGE    5
+
+#define RTE_EAL_TIME_LAPSE_1000     1000
+#define RTE_EAL_TIME_LAPSE_750       750
+#define RTE_EAL_TIME_LAPSE_500       500
+#define RTE_EAL_TIME_LAPSE_250       250
+#define RTE_EAL_TIME_LAPSE_150       150
+#define RTE_EAL_TIME_LAPSE_100       100
+
 /**
  * It waits for events on the epoll instance.
  *
@@ -218,5 +228,8 @@ rte_intr_allow_others(struct rte_intr_handle *intr_handle);
  */
 int
 rte_intr_cap_multiple(struct rte_intr_handle *intr_handle);
+
+uint64_t*
+rte_eal_interrupts_call_count_fetch(uint8_t clear);
 
 #endif /* _RTE_EAL_INTERRUPTS_H_ */

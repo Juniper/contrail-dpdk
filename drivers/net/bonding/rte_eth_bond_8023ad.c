@@ -132,6 +132,253 @@ static const struct ether_addr lacp_mac_addr = {
 
 struct port mode_8023ad_ports[RTE_MAX_ETHPORTS];
 
+static uint64_t lacpdu_tx_count[BOND_MODE_8023AD_MAX_SLAVES];
+static uint64_t lacpdu_rx_count[BOND_MODE_8023AD_MAX_SLAVES];
+static uint64_t
+		lacp_txrx_ring_enqueue_fail_count[RTE_TXRX][BOND_MODE_8023AD_MAX_SLAVES];
+static uint64_t lacpdu_alloc_fail_count[BOND_MODE_8023AD_MAX_SLAVES];
+
+static uint64_t
+		prev_time_timer_txrx[RTE_TXRX][BOND_MODE_8023AD_MAX_SLAVES] = {{0}};
+static uint64_t
+		prev_time_pmd_txrx[RTE_TXRX][BOND_MODE_8023AD_MAX_SLAVES] = {{0}};
+
+static uint64_t
+		lacp_timer_txrx_time_counter[RTE_TXRX][BOND_MODE_8023AD_MAX_SLAVES][RTE_TXRX_HISTOGRAM_MAX_RANGE]
+		= {{{0}}};
+static uint64_t
+		lacp_pmd_txrx_time_counter[RTE_TXRX][BOND_MODE_8023AD_MAX_SLAVES][RTE_TXRX_HISTOGRAM_MAX_RANGE]
+		= {{{0}}};
+static uint64_t
+		periodic_cb_processing_time_counts[RTE_CB_HISTOGRAM_MAX_RANGE] = {0};
+static uint64_t periodic_cb_call_counts[RTE_CB_HISTOGRAM_MAX_RANGE] = {0};
+
+void rte_eth_bond_8023ad_lacp_get_timer_txrx_counts(int txrx, uint16_t port_id);
+void rte_eth_bond_8023ad_periodic_cb_processing_time_histogram(
+		uint64_t start, uint64_t end);
+void rte_eth_bond_8023ad_periodic_cb_call_histogram(uint64_t prev,
+		uint64_t cur);
+
+static uint64_t rte_eth_bond_8023ad_lacp_get_timer_txrx_time_lapse(int txrx,
+		uint16_t port_id)
+{
+	uint64_t cur_time;
+	uint64_t diff;
+
+	cur_time = rte_rdtsc();
+	if (prev_time_timer_txrx[txrx][port_id] == 0)
+		prev_time_timer_txrx[txrx][port_id] = cur_time;
+
+	diff = ((cur_time - prev_time_timer_txrx[txrx][port_id]) * 1000) /
+			rte_get_tsc_hz();
+	if (diff >= RTE_TIME_LAPSE_1500) {
+		if (txrx == RTE_TX) {
+			RTE_BOND_LOG(ERR,
+					"Warning: LACP - Timer TX, packet transmitted after"
+					" %"PRId64"ms, slave:%u", diff, port_id);
+		}
+		if (txrx == RTE_RX) {
+			RTE_BOND_LOG(ERR,
+					"Warning: LACP - Timer RX, packet received after"
+					" %"PRId64"ms, slave:%u", diff, port_id);
+		}
+	}
+
+	prev_time_timer_txrx[txrx][port_id] = cur_time;
+	return diff;
+}
+
+static uint64_t rte_eth_bond_8023ad_lacp_get_pmd_txrx_time_lapse(int txrx,
+		uint16_t port_id)
+{
+	uint64_t cur_time;
+	uint64_t diff;
+
+	cur_time = rte_rdtsc();
+	if (prev_time_pmd_txrx[txrx][port_id] == 0)
+		prev_time_pmd_txrx[txrx][port_id] = cur_time;
+
+	diff = ((cur_time - prev_time_pmd_txrx[txrx][port_id]) * 1000) /
+			rte_get_tsc_hz();
+	if (diff >= RTE_TIME_LAPSE_1500) {
+		if (txrx == RTE_TX) {
+			RTE_BOND_LOG(ERR,
+					"Warning: LACP - Bond PMD TX, packet transmitted after"
+					" %"PRId64"ms, slave:%u", diff, port_id);
+		}
+		if (txrx == RTE_RX) {
+			RTE_BOND_LOG(ERR,
+					"Warning: LACP - Bond PMD RX, packet received after"
+					" %"PRId64"ms, slave:%u", diff, port_id);
+		}
+	}
+
+	prev_time_pmd_txrx[txrx][port_id] = cur_time;
+	return diff;
+}
+
+void rte_eth_bond_8023ad_lacp_get_timer_txrx_counts(int txrx, uint16_t port_id)
+{
+	uint64_t diff;
+
+	/* Invalid case */
+	if ((txrx != RTE_TX) && (txrx != RTE_RX)) {
+		return;
+	}
+
+	diff = rte_eth_bond_8023ad_lacp_get_timer_txrx_time_lapse(txrx, port_id);
+	if (diff >= RTE_TIME_LAPSE_3000)
+		lacp_timer_txrx_time_counter[txrx][port_id][0]++;
+	else if (diff >= RTE_TIME_LAPSE_2500)
+		lacp_timer_txrx_time_counter[txrx][port_id][1]++;
+	else if (diff >= RTE_TIME_LAPSE_2000)
+		lacp_timer_txrx_time_counter[txrx][port_id][2]++;
+	else if (diff >= RTE_TIME_LAPSE_1500)
+		lacp_timer_txrx_time_counter[txrx][port_id][3]++;
+	else if (diff > RTE_TIME_LAPSE_1000)
+		lacp_timer_txrx_time_counter[txrx][port_id][4]++;
+	else
+		lacp_timer_txrx_time_counter[txrx][port_id][5]++;
+}
+
+void rte_eth_bond_8023ad_lacp_get_pmd_txrx_counts(int txrx, uint16_t port_id)
+{
+	uint64_t diff;
+
+	/* Invalid case */
+	if ((txrx != RTE_TX) && (txrx != RTE_RX)) {
+		return;
+	}
+
+	diff = rte_eth_bond_8023ad_lacp_get_pmd_txrx_time_lapse(txrx, port_id);
+	if (diff >= RTE_TIME_LAPSE_3000)
+		lacp_pmd_txrx_time_counter[txrx][port_id][0]++;
+	else if (diff >= RTE_TIME_LAPSE_2500)
+		lacp_pmd_txrx_time_counter[txrx][port_id][1]++;
+	else if (diff >= RTE_TIME_LAPSE_2000)
+		lacp_pmd_txrx_time_counter[txrx][port_id][2]++;
+	else if (diff >= RTE_TIME_LAPSE_1500)
+		lacp_pmd_txrx_time_counter[txrx][port_id][3]++;
+	else if (diff > RTE_TIME_LAPSE_1000)
+		lacp_pmd_txrx_time_counter[txrx][port_id][4]++;
+	else
+		lacp_pmd_txrx_time_counter[txrx][port_id][5]++;
+}
+
+void rte_eth_bond_8023ad_periodic_cb_processing_time_histogram(
+		uint64_t start, uint64_t end)
+{
+	uint64_t diff = ((end - start) * 1000) / rte_get_tsc_hz();
+
+	if (diff >= RTE_TIME_LAPSE_20) {
+		RTE_BOND_LOG(ERR, "Warning: Periodic CB processing time was %"PRId64"ms"
+				, diff);
+	}
+
+	if (diff >= RTE_TIME_LAPSE_1000)
+		periodic_cb_processing_time_counts[0]++;
+	else if (diff >= RTE_TIME_LAPSE_750)
+		periodic_cb_processing_time_counts[1]++;
+	else if (diff >= RTE_TIME_LAPSE_500)
+		periodic_cb_processing_time_counts[2]++;
+	else if (diff >= RTE_TIME_LAPSE_250)
+		periodic_cb_processing_time_counts[3]++;
+	else if (diff >= RTE_TIME_LAPSE_20)
+		periodic_cb_processing_time_counts[4]++;
+	else {
+		/* Non erronous case need not be captured in histograms */
+		return;
+	}
+}
+
+void rte_eth_bond_8023ad_periodic_cb_call_histogram(uint64_t prev, uint64_t cur)
+{
+	uint64_t diff;
+
+	if (prev == 0)
+		prev = cur;
+
+	diff = ((cur - prev) * 1000) / rte_get_tsc_hz();
+
+	if (diff>= RTE_TIME_LAPSE_150) {
+		RTE_BOND_LOG(ERR, "Warning: Periodic CB function called"
+				" after %"PRId64"ms", diff);
+	}
+
+	if (diff >= RTE_TIME_LAPSE_1000)
+		periodic_cb_call_counts[0]++;
+	else if (diff >= RTE_TIME_LAPSE_750)
+		periodic_cb_call_counts[1]++;
+	else if (diff >= RTE_TIME_LAPSE_500)
+		periodic_cb_call_counts[2]++;
+	else if (diff >= RTE_TIME_LAPSE_250)
+		periodic_cb_call_counts[3]++;
+	else if (diff > RTE_TIME_LAPSE_100)
+		periodic_cb_call_counts[4]++;
+	else {
+		/* Non erronous case need not be captured in histograms */
+		return;
+	}
+}
+
+uint64_t*
+rte_eth_bond_8023ad_lacp_timer_txrx_count(int txrx, uint16_t port_id,
+		uint8_t clear)
+{
+	if ((txrx != RTE_TX) && (txrx != RTE_RX))
+		return NULL;
+
+	if (port_id > BOND_MODE_8023AD_MAX_SLAVES)
+		return NULL;
+
+	if (clear) {
+		memset(lacp_timer_txrx_time_counter[txrx][port_id], 0,
+				RTE_TXRX_HISTOGRAM_MAX_RANGE*sizeof(uint64_t));
+	}
+
+	return lacp_timer_txrx_time_counter[txrx][port_id];
+}
+
+uint64_t*
+rte_eth_bond_8023ad_lacp_pmd_txrx_count(int txrx, uint16_t port_id,
+		uint8_t clear)
+{
+	if ((txrx != RTE_TX) && (txrx != RTE_RX))
+		return NULL;
+
+	if (port_id > BOND_MODE_8023AD_MAX_SLAVES)
+		return NULL;
+
+	if (clear) {
+		memset(lacp_pmd_txrx_time_counter[txrx][port_id], 0,
+				RTE_TXRX_HISTOGRAM_MAX_RANGE*sizeof(uint64_t));
+	}
+
+	return lacp_pmd_txrx_time_counter[txrx][port_id];
+}
+
+uint64_t*
+rte_eth_bond_8023ad_periodic_cb_processing_time_count(uint8_t clear)
+{
+	if (clear) {
+		memset(periodic_cb_processing_time_counts, 0,
+				RTE_CB_HISTOGRAM_MAX_RANGE*sizeof(uint64_t));
+	}
+
+	return periodic_cb_processing_time_counts;
+}
+
+uint64_t*
+rte_eth_bond_8023ad_periodic_cb_call_count(uint8_t clear)
+{
+	if (clear) {
+		memset(periodic_cb_call_counts, 0,
+				RTE_CB_HISTOGRAM_MAX_RANGE*sizeof(uint64_t));
+	}
+
+	return periodic_cb_call_counts;
+}
+
 static void
 timer_cancel(uint64_t *timer)
 {
@@ -205,7 +452,7 @@ show_warnings(uint16_t slave_id)
 			rte_get_tsc_hz() / 1000);
 
 	if (warnings & WRN_RX_QUEUE_FULL) {
-		RTE_BOND_LOG(DEBUG,
+		RTE_BOND_LOG(ERR,
 			     "Slave %u: failed to enqueue LACP packet into RX ring.\n"
 			     "Receive and transmit functions must be invoked on bonded"
 			     "interface at least 10 times per second or LACP will notwork correctly",
@@ -213,7 +460,7 @@ show_warnings(uint16_t slave_id)
 	}
 
 	if (warnings & WRN_TX_QUEUE_FULL) {
-		RTE_BOND_LOG(DEBUG,
+		RTE_BOND_LOG(ERR,
 			     "Slave %u: failed to enqueue LACP packet into TX ring.\n"
 			     "Receive and transmit functions must be invoked on bonded"
 			     "interface at least 10 times per second or LACP will not work correctly",
@@ -366,6 +613,7 @@ rx_machine(struct bond_dev_private *internals, uint16_t slave_id,
 		PARTNER_STATE_CLR(port, SYNCHRONIZATION);
 		PARTNER_STATE_SET(port, LACP_SHORT_TIMEOUT);
 		timer_set(&port->current_while_timer, internals->mode4.short_timeout);
+		RTE_BOND_LOG(ERR, "Warning: LACP Port down, slave:%u", slave_id);
 	}
 }
 
@@ -570,6 +818,7 @@ tx_machine(struct bond_dev_private *internals, uint16_t slave_id)
 
 	lacp_pkt = rte_pktmbuf_alloc(port->mbuf_pool);
 	if (lacp_pkt == NULL) {
+		lacpdu_alloc_fail_count[slave_id]++;
 		RTE_BOND_LOG(ERR, "Failed to allocate LACP packet from pool");
 		return;
 	}
@@ -625,8 +874,12 @@ tx_machine(struct bond_dev_private *internals, uint16_t slave_id)
 			   Retransmission will happen in next function call. */
 			rte_pktmbuf_free(lacp_pkt);
 			set_warning_flags(port, WRN_TX_QUEUE_FULL);
+			lacp_txrx_ring_enqueue_fail_count[RTE_TX][slave_id]++;
 			return;
 		}
+		/* Timer TX Histogram */
+		rte_eth_bond_8023ad_lacp_get_timer_txrx_counts(RTE_TX, slave_id);
+		lacpdu_tx_count[slave_id]++;
 	} else {
 		uint16_t pkts_sent = rte_eth_tx_burst(slave_id,
 				internals->mode4.dedicated_queues.tx_qid,
@@ -636,6 +889,7 @@ tx_machine(struct bond_dev_private *internals, uint16_t slave_id)
 			set_warning_flags(port, WRN_TX_QUEUE_FULL);
 			return;
 		}
+		lacpdu_tx_count[slave_id]++;
 	}
 
 
@@ -842,7 +1096,14 @@ bond_mode_8023ad_periodic_cb(void *arg)
 	struct rte_mbuf *lacp_pkt = NULL;
 
 	uint8_t i, slave_id;
+	uint64_t start_timer = rte_rdtsc();
+	uint64_t end_timer, cur_timer = rte_rdtsc();
+	uint64_t tx_start_timer, tx_end_timer, tx_diff_timer;
+	static uint64_t prev_periodic_cb_call_timer = 0;
 
+
+	rte_eth_bond_8023ad_periodic_cb_call_histogram(prev_periodic_cb_call_timer,
+			cur_timer);
 
 	/* Update link status on each port */
 	for (i = 0; i < internals->active_slave_count; i++) {
@@ -910,6 +1171,13 @@ bond_mode_8023ad_periodic_cb(void *arg)
 				lacp_pkt = NULL;
 
 			rx_machine_update(internals, slave_id, lacp_pkt);
+
+			if (retval == 0) {
+				/* Timer RX Histogram */
+				rte_eth_bond_8023ad_lacp_get_timer_txrx_counts(RTE_RX, slave_id);
+				lacpdu_rx_count[slave_id]++;
+			}
+
 		} else {
 			uint16_t rx_count = rte_eth_rx_burst(slave_id,
 					internals->mode4.dedicated_queues.rx_qid,
@@ -920,19 +1188,38 @@ bond_mode_8023ad_periodic_cb(void *arg)
 						slave_id, lacp_pkt);
 			else
 				rx_machine_update(internals, slave_id, NULL);
+
+			lacpdu_rx_count[slave_id] += rx_count;
 		}
+
+		tx_start_timer = rte_rdtsc();
 
 		periodic_machine(internals, slave_id);
 		mux_machine(internals, slave_id);
 		tx_machine(internals, slave_id);
 		selection_logic(internals, slave_id);
 
+		tx_end_timer = rte_rdtsc();
+		tx_diff_timer = ((tx_end_timer - tx_start_timer) * 1000) /
+				rte_get_tsc_hz();
+		if (tx_diff_timer > RTE_TIME_LAPSE_20) {
+			RTE_BOND_LOG(ERR,
+					"Warning: LACP TX machine delayed by %"PRIu64"ms, slave:%u",
+					tx_diff_timer, i);
+		}
+
 		SM_FLAG_CLR(port, BEGIN);
 		show_warnings(slave_id);
 	}
 
+	end_timer = rte_rdtsc();
+	rte_eth_bond_8023ad_periodic_cb_processing_time_histogram(
+			start_timer, end_timer);
+
 	rte_eal_alarm_set(internals->mode4.update_timeout_us,
 			bond_mode_8023ad_periodic_cb, arg);
+
+	prev_periodic_cb_call_timer = rte_rdtsc();
 }
 
 void
@@ -1287,10 +1574,13 @@ bond_mode_8023ad_handle_slow_pkt(struct bond_dev_private *internals,
 		if (internals->mode4.dedicated_queues.enabled == 0) {
 			int retval = rte_ring_enqueue(port->rx_ring, pkt);
 			if (retval != 0) {
+				lacp_txrx_ring_enqueue_fail_count[RTE_RX][slave_id]++;
 				/* If RX fing full free lacpdu message and drop packet */
 				wrn = WRN_RX_QUEUE_FULL;
 				goto free_out;
 			}
+			/* Bond RX Histogram */
+			rte_eth_bond_8023ad_lacp_get_pmd_txrx_counts(RTE_RX, slave_id);
 		} else
 			rx_machine_update(internals, slave_id, pkt);
 	} else {
@@ -1648,4 +1938,64 @@ rte_eth_bond_8023ad_dedicated_queues_disable(uint16_t port)
 	bond_ethdev_mode_set(dev, internals->mode);
 
 	return retval;
+}
+
+uint64_t
+rte_eth_bond_8023ad_lacp_tx_count(uint16_t port_id, uint8_t clear)
+{
+    if (port_id > BOND_MODE_8023AD_MAX_SLAVES)
+       return -1;
+
+    if (clear) {
+        lacpdu_tx_count[port_id] = 0;
+        return 0;
+    }
+
+   return lacpdu_tx_count[port_id];
+}
+
+uint64_t
+rte_eth_bond_8023ad_lacp_rx_count(uint16_t port_id, uint8_t clear)
+{
+  if (port_id > BOND_MODE_8023AD_MAX_SLAVES)
+      return -1;
+
+  if (clear) {
+      lacpdu_rx_count[port_id] = 0;
+      return 0;
+  }
+
+  return lacpdu_rx_count[port_id];
+}
+
+uint64_t
+rte_eth_bond_8023ad_lacp_txrx_ring_enqueue_fail_count(int txrx,
+		uint16_t port_id, uint8_t clear)
+{
+	if ((txrx != RTE_TX) && (txrx != RTE_RX))
+		return -1;
+
+    if (port_id > BOND_MODE_8023AD_MAX_SLAVES)
+        return -1;
+
+    if (clear) {
+        lacp_txrx_ring_enqueue_fail_count[txrx][port_id] = 0;
+        return 0;
+    }
+
+    return lacp_txrx_ring_enqueue_fail_count[txrx][port_id];
+}
+
+uint64_t
+rte_eth_bond_8023ad_lacp_alloc_fail_count(uint16_t port_id, uint8_t clear)
+{
+    if (port_id > BOND_MODE_8023AD_MAX_SLAVES)
+        return -1;
+
+    if (clear) {
+        lacpdu_alloc_fail_count[port_id] = 0;
+        return 0;
+    }
+
+    return lacpdu_alloc_fail_count[port_id];
 }
