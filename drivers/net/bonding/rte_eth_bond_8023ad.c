@@ -1274,6 +1274,7 @@ bond_mode_8023ad_start(struct rte_eth_dev *bond_dev)
 		return rte_eal_alarm_set(us, &bond_mode_8023ad_ext_periodic_cb,
 					 bond_dev);
 
+	rte_eal_alarm_cancel(&bond_mode_8023ad_periodic_cb, bond_dev);
 	return rte_eal_alarm_set(us, &bond_mode_8023ad_periodic_cb, bond_dev);
 }
 
