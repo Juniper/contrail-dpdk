@@ -31,22 +31,6 @@
 /* Table for statistics in mode 5 TLB */
 static uint64_t tlb_last_obytets[RTE_MAX_ETHPORTS];
 
-static uint64_t bond_tx_burst_fail_count[BOND_MODE_8023AD_MAX_SLAVES] = {0};
-
-uint64_t
-rte_eth_bond_pmd_tx_burst_fail_count(uint16_t port_id, uint8_t clear)
-{
-    if(port_id > BOND_MODE_8023AD_MAX_SLAVES)
-        return -1;
-
-    if(clear) {
-        bond_tx_burst_fail_count[port_id] = 0;
-        return 0;
-    }
-
-    return bond_tx_burst_fail_count[port_id];
-}
-
 static inline size_t
 get_vlan_offset(struct ether_hdr *eth_hdr, uint16_t *proto)
 {
@@ -1320,15 +1304,8 @@ bond_ethdev_tx_burst_8023ad(void *queue, struct rte_mbuf **bufs,
 			 * re-enqueue LAG control plane packets to buffering
 			 * ring if transmission fails so the packet isn't lost.
 			 */
-			if (slave_tx_count != 1) {
-				bond_tx_burst_fail_count[i]++;
-				RTE_BOND_LOG(ERR,
-					"rte_eth_tx_burst() fails, slave dev (%d)", i);
+			if (slave_tx_count != 1)
 				rte_ring_enqueue(port->tx_ring,	ctrl_pkt);
-			} else {
-				/* Bond TX Histogram */
-				rte_eth_bond_8023ad_lacp_get_pmd_txrx_counts(RTE_TX, i);
-			}
 		}
 	}
 
