@@ -9,7 +9,6 @@
 #include <sys/queue.h>
 #include <sys/time.h>
 #include <sys/timerfd.h>
-#include <inttypes.h>
 
 #include <rte_memory.h>
 #include <rte_interrupts.h>
@@ -22,7 +21,6 @@
 #include <rte_errno.h>
 #include <rte_spinlock.h>
 #include <eal_private.h>
-#include <rte_cycles.h>
 
 #ifndef	TFD_NONBLOCK
 #include <fcntl.h>
@@ -32,9 +30,7 @@
 #define NS_PER_US 1000
 #define US_PER_MS 1000
 #define MS_PER_S 1000
-
-#define RTE_EAL_DELAY_20    20
-#define RTE_EAL_DELAY_100  100
+#define US_PER_S (US_PER_MS * MS_PER_S)
 
 #ifdef CLOCK_MONOTONIC_RAW /* Defined in glibc bits/time.h */
 #define CLOCK_TYPE_ID CLOCK_MONOTONIC_RAW
@@ -79,7 +75,6 @@ eal_alarm_callback(void *arg __rte_unused)
 {
 	struct timespec now;
 	struct alarm_entry *ap;
-	uint64_t start_timer, end_timer, diff;
 
 	rte_spinlock_lock(&alarm_list_lk);
 	while ((ap = LIST_FIRST(&alarm_list)) !=NULL &&
@@ -90,15 +85,7 @@ eal_alarm_callback(void *arg __rte_unused)
 		ap->executing_id = pthread_self();
 		rte_spinlock_unlock(&alarm_list_lk);
 
-		start_timer = rte_rdtsc();
 		ap->cb_fn(ap->cb_arg);
-		end_timer = rte_rdtsc();
-		diff = ((end_timer - start_timer) * 1000) / rte_get_tsc_hz();
-		if (diff > RTE_EAL_DELAY_100) {
-			RTE_LOG(ERR, EAL,
-					"Warning: eal_alarm_callback took %"PRId64"ms, cb_fn:%p\n",
-					diff, ap->cb_fn);
-		}
 
 		rte_spinlock_lock(&alarm_list_lk);
 
@@ -129,21 +116,12 @@ rte_eal_alarm_set(uint64_t us, rte_eal_alarm_callback cb_fn, void *cb_arg)
 	struct timespec now;
 	int ret = 0;
 	struct alarm_entry *ap, *new_alarm;
-	uint64_t cal_start, cal_end, cal_diff;
 
 	/* Check parameters, including that us won't cause a uint64_t overflow */
 	if (us < 1 || us > (UINT64_MAX - US_PER_S) || cb_fn == NULL)
 		return -EINVAL;
 
-	cal_start = rte_rdtsc();
 	new_alarm = calloc(1, sizeof(*new_alarm));
-	cal_end = rte_rdtsc();
-	cal_diff = ((cal_end - cal_start) * 1000) / rte_get_tsc_hz();
-	if(cal_diff > RTE_EAL_DELAY_20) {
-		RTE_LOG(ERR, EAL,
-				"Warning: rte_eal_alarm_set calloc took %"PRId64"ms, cb_fn:%p\n",
-				cal_diff, cb_fn);
-	}
 	if (new_alarm == NULL)
 		return -ENOMEM;
 

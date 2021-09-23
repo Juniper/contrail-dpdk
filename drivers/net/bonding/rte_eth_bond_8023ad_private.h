@@ -19,8 +19,6 @@
 #define BOND_MODE_8023AX_SLAVE_RX_PKTS        3
 /** Maximum number of LACP packets from one slave queued in TX ring. */
 #define BOND_MODE_8023AX_SLAVE_TX_PKTS        1
-/** Maximum number of slaves for each port. */
-#define BOND_MODE_8023AD_MAX_SLAVES           6
 /**
  * Timeouts deffinitions (5.4.4 in 802.1AX documentation).
  */
