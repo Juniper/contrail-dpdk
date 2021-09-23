@@ -35,27 +35,6 @@ extern "C" {
 #define MARKER_TLV_TYPE_INFO                0x01
 #define MARKER_TLV_TYPE_RESP                0x02
 
-/*
- * LACP TX/RX histogram constants
- */
-#define RTE_TX                                 0
-#define RTE_RX                                 1
-#define RTE_TXRX                               2
-#define RTE_CB_HISTOGRAM_MAX_RANGE             5
-#define RTE_TXRX_HISTOGRAM_MAX_RANGE           6
-
-#define RTE_TIME_LAPSE_3000                 3000
-#define RTE_TIME_LAPSE_2500                 2500
-#define RTE_TIME_LAPSE_2000                 2000
-#define RTE_TIME_LAPSE_1500                 1500
-#define RTE_TIME_LAPSE_1000                 1000
-#define RTE_TIME_LAPSE_750                   750
-#define RTE_TIME_LAPSE_500                   500
-#define RTE_TIME_LAPSE_250                   250
-#define RTE_TIME_LAPSE_150                   150
-#define RTE_TIME_LAPSE_100                   100
-#define RTE_TIME_LAPSE_20                     20
-
 typedef void (*rte_eth_bond_8023ad_ext_slowrx_fn)(uint16_t slave_id,
 						  struct rte_mbuf *lacp_pkt);
 
@@ -361,67 +340,4 @@ rte_eth_bond_8023ad_agg_selection_set(uint16_t port_id,
  */
 int
 rte_eth_bond_8023ad_ext_set_fast(uint16_t port_id, uint16_t slave_id);
-
- /**
-  *  Get Lacp statistics counter for slaves
-  *  @param port_id Bonding slave device id
-  *  @param clear, reset statistics
-  *  @return
-  *    0 on success, negative value otherwise
-  */
-uint64_t
-rte_eth_bond_8023ad_lacp_tx_count(uint16_t port_id, uint8_t clear);
-
-/**
- *  Get Lacp statistics counter for slaves
- *  @param port_id Bonding slave device id
- *  @param clear, reset statistics
- *  @return
- *    0 on success, negative value otherwise
- */
-uint64_t
-rte_eth_bond_8023ad_lacp_rx_count(uint16_t port_id, uint8_t clear);
-
-/**
- *  Get Lacp packet tx/rx enqueue fail counter for slaves
- *  @param port_id Bonding slave device id
- *  @param clear, reset statistics
- *  @return
- *    0 on success, negative value otherwise
- */
-uint64_t
-rte_eth_bond_8023ad_lacp_txrx_ring_enqueue_fail_count(int txrx,
-		uint16_t port_id, uint8_t clear);
-
-/**
- *  Get Lacp packet alloc fail counter for slaves
- *  @param port_id Bonding slave device id
- *  @param clear, reset statistics
- *  @return
- *      0 on success, negative value otherwise
- */
-uint64_t
-rte_eth_bond_8023ad_lacp_alloc_fail_count(uint16_t port_id, uint8_t clear);
-
-void
-rte_eth_bond_8023ad_lacp_get_pmd_txrx_counts(int txrx, uint16_t port_id);
-
-uint64_t*
-rte_eth_bond_8023ad_lacp_timer_txrx_count(int txrx, uint16_t port_id, uint8_t clear);
-
-uint64_t*
-rte_eth_bond_8023ad_lacp_pmd_txrx_count(int txrx, uint16_t port_id, uint8_t clear);
-
-uint64_t*
-rte_eth_bond_8023ad_periodic_cb_processing_time_count(uint8_t clear);
-
-uint64_t*
-rte_eth_bond_8023ad_periodic_cb_call_count(uint8_t clear);
-
-extern uint64_t*
-rte_eth_bond_8023ad_lacp_pmd_tx_count(uint16_t port_id, uint8_t clear);
-
-extern uint64_t
-rte_eth_bond_pmd_tx_burst_fail_count(uint16_t port_id, uint8_t clear);
-
 #endif /* RTE_ETH_BOND_8023AD_H_ */
